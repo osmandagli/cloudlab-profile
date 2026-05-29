@@ -22,13 +22,13 @@ chmod +x /etc/rc.local
 
 # Disable Hyperthreading
 if [[ ! -f "$HT_DISABLED_MARKER" ]]; then
-echo "Disabling HT via GRUB..."
-sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nosmt isolcpus=$RELAY_CPU nohz_full=$RELAY_CPU rcu_nocbs=$RELAY_CPU\"/" $GRUB_CFG
-update-grub
-touch "$HT_DISABLED_MARKER"
-write_startup_script
-reboot
-exit 0
+	echo "Disabling HT via GRUB..."
+	sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nosmt isolcpus=$RELAY_CPU nohz_full=$RELAY_CPU rcu_nocbs=$RELAY_CPU\"/" $GRUB_CFG
+	update-grub
+	touch "$HT_DISABLED_MARKER"
+	write_startup_script
+	reboot
+	exit 0
 fi
 
 echo "Post reboot setup: $(date)"

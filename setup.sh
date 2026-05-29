@@ -6,6 +6,7 @@ exec > /local/setup.log 2>&1
 
 echo "Setup started $(date)"
 
+ROLE=${1:-relay}
 RELAY_CPU=2
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
@@ -19,7 +20,7 @@ EOF
 
 chmod +x /etc/rc.local
 }
-
+if [[ "$ROLE" == "relay" ]]; then 
 # Disable Hyperthreading
 if [[ ! -f "$HT_DISABLED_MARKER" ]]; then
 	echo "Disabling HT via GRUB..."
@@ -64,5 +65,7 @@ for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
     disabled=$(cat "$state/disable")
     echo "  $name: disabled=$disabled"
 done
+
+fi # Relay role
 
 echo "Setup completed: $(date)"

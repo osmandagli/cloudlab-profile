@@ -8,6 +8,8 @@ echo "Setup started $(date)"
 
 ROLE=${1:-relay}
 RELAY_CPU=2
+NIC_IFACE="eno12409"
+RELAY_PORT=4433
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
 
@@ -65,6 +67,37 @@ for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
     disabled=$(cat "$state/disable")
     echo "  $name: disabled=$disabled"
 done
+
+echo "Setting flow director"
+
+# Disable irbalance service 
+systemctl stop irqbalance
+systemctl disable irqbalance
+
+# Set queue count
+ethtool -L $NIC_IFACE combined $(nproc)
+
+# Add the rule to interface
+ethtool -U $NIC_IFACE \
+        flow-type udp4 \
+        dst-port $RELAY_PORT \
+        action $RELAY_CPU
+
+# Check the rule
+ethtool -U $NIC_IFACE
+
+# Get all the possible NIC IRQs
+NIC_IRQ=$(grep "${NIC_IFACE}-TxRx-${RELAY_CPU}" /proc/interrupts | awk '{print $1}' | tr -d ':')
+
+if [[ -n "$NIC_IRQ" ]]; then
+        CPU_MASK=$(printf "%x" $((1 << RELAY_CPU)))
+        echo "$CPU_MASK" > /proc/irq/$NIC_IRQ/smp_affinity
+        echo "Pinned IRQ $NIC_IRQ to CPU $RELAY_CPU (mask 0x$CPU_MASK)"
+else    
+        echo "WARNING: Could not find IRQ for ${NIC_IFACE}-TxRx-${RELAY_CPU}"
+        echo "Available IRQs:"
+        grep "$NIC_IFACE" /proc/interrupts
+fi
 
 fi # Relay role
 

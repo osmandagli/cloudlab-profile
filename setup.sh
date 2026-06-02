@@ -74,9 +74,6 @@ echo "Setting flow director"
 systemctl stop irqbalance
 systemctl disable irqbalance
 
-# Set queue count
-ethtool -L $NIC_IFACE combined $(nproc)
-
 # Add the rule to interface
 ethtool -U $NIC_IFACE \
         flow-type udp4 \

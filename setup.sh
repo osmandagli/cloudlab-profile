@@ -81,10 +81,10 @@ ethtool -U $NIC_IFACE \
         action $RELAY_CPU
 
 # Check the rule
-ethtool -U $NIC_IFACE
+ethtool -u $NIC_IFACE
 
 # Get all the possible NIC IRQs
-NIC_IRQ=$(grep "${NIC_IFACE}-TxRx-${RELAY_CPU}" /proc/interrupts | awk '{print $1}' | tr -d ':')
+NIC_IRQ=$(grep ${NIC_IFACE}-TxRx-${RELAY_CPU}$ /proc/interrupts | awk '{print $1}' | tr -d ':')
 
 if [[ -n "$NIC_IRQ" ]]; then
         CPU_MASK=$(printf "%x" $((1 << RELAY_CPU)))

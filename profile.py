@@ -18,7 +18,7 @@ relay.hardware_type = "c6620"
 relay.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD"
 relay.addService(rspec.Execute(
     shell="bash",
-    command="sudo /local/repository/setup.sh relay"
+    command="sudo bash /local/repository/setup.sh relay"
 ))
 
 # Publisher
@@ -27,7 +27,7 @@ publisher.hardware_type = "c6620"
 publisher.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD"
 publisher.addService(rspec.Execute(
     shell="bash",
-    command="sudo /local/repository/setup.sh publisher"
+    command="sudo bash /local/repository/setup.sh publisher"
 ))
 
 # Subscriber 
@@ -36,7 +36,7 @@ subscriber.hardware_type = "c6620"
 subscriber.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD"
 subscriber.addService(rspec.Execute(
     shell="bash",
-    command="sudo /local/repository/setup.sh subscriber"
+    command="sudo bash /local/repository/setup.sh subscriber"
 ))
 
 # Links

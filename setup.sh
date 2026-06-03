@@ -102,6 +102,11 @@ fi
 KERNEL_VERSION=$(uname -a |awk '{print $3}')
 sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y
 
+# Give permissions to the perf
+echo 'kernel.perf_event_paranoid=-1' | sudo tee /etc/sysctl.d/99-perf.conf
+echo 'kernel.kptr_restrict=0' | sudo tee -a /etc/sysctl.d/99-perf.conf
+sudo sysctl -p /etc/sysctl.d/99-perf.conf
+
 fi # Relay role
 
 done

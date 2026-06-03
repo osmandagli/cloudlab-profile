@@ -98,6 +98,10 @@ else
         grep "$NIC_IFACE" /proc/interrupts
 fi
 
+# Download perf
+KERNEL_VERSION=$(uname -a |awk '{print $3}')
+sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y
+
 fi # Relay role
 
 done

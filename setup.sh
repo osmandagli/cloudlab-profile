@@ -8,7 +8,7 @@ echo "Setup started $(date)"
 
 ROLE=${1:-relay}
 RELAY_CPU=2
-NIC_IFACE="eno12409"
+NIC_IFACES=("eno12409" "enp23s0f0")
 RELAY_PORT=4433
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
@@ -74,7 +74,9 @@ echo "Setting flow director"
 systemctl stop irqbalance
 systemctl disable irqbalance
 
-# Add the rule to interface
+for NIC_IFACE in "$NIC_IFACES[@]"; do
+
+# Add the rule to the interface
 ethtool -U $NIC_IFACE \
         flow-type udp4 \
         dst-port $RELAY_PORT \
@@ -98,4 +100,5 @@ fi
 
 fi # Relay role
 
+done
 echo "Setup completed: $(date)"

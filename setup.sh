@@ -21,6 +21,9 @@ exit 0
 EOF
 
 chmod +x /etc/rc.local
+
+apt update
+
 }
 if [[ "$ROLE" == "relay" ]]; then 
 # Disable Hyperthreading
@@ -108,6 +111,23 @@ echo 'kernel.kptr_restrict=0' | sudo tee -a /etc/sysctl.d/99-perf.conf
 sudo sysctl -p /etc/sysctl.d/99-perf.conf
 
 fi # Relay role
+
+# Clone the repo
+git clone https://github.com/facebookexperimental/moxygen.git
+cd moxygen
+
+# Download dependent packages" 
+./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
+sudo apt install g++ python3-dev -y
+
+# Set env variables for building
+eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
+
+# Build the moxygen
+./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path ~/moxygen_build --build-dir ~/moxygen_build/build --install-dir ~/moxygen_build
+
+# export the LD_LIBRARY_PATH 
+echo "export LD_LIBRARY_PATH=$(find ~/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc
 
 done
 echo "Setup completed: $(date)"

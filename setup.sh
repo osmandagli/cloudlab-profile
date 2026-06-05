@@ -2,7 +2,7 @@
 
 set -euo pipefail
 mkdir -p /local
-exec > /local/setup.log 2>&1
+exec > /local/log/setup.log 2>&1
 
 echo "Setup started $(date)"
 

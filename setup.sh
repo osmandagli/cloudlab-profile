@@ -1,8 +1,8 @@
 #!/bin/bash
 
 set -euo pipefail
-mkdir -p /local
-exec > /local/log/setup.log 2>&1
+mkdir -p /local/logs
+exec > /local/logs/setup.log 2>&1
 
 echo "Setup started $(date)"
 
@@ -12,18 +12,18 @@ NIC_IFACES=("eno12409" "enp23s0f0")
 RELAY_PORT=4433
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+
+apt update
 
 write_startup_script() {
-	cat > /etc/rc.local << 'EOF'
+	cat > /etc/rc.local << EOF
 #!/bin/bash
-bash /local/repository/setup.sh
+bash $SCRIPT_PATH
 exit 0
 EOF
 
 chmod +x /etc/rc.local
-
-apt update
-
 }
 if [[ "$ROLE" == "relay" ]]; then 
 # Disable Hyperthreading
@@ -77,32 +77,33 @@ echo "Setting flow director"
 systemctl stop irqbalance
 systemctl disable irqbalance
 
-for NIC_IFACE in "$NIC_IFACES[@]"; do
+for NIC_IFACE in "${NIC_IFACES[@]}"; do
 
-# Add the rule to the interface
-ethtool -U $NIC_IFACE \
-        flow-type udp4 \
-        dst-port $RELAY_PORT \
-        action $RELAY_CPU
+    # Add the rule to the interface
+    ethtool -U $NIC_IFACE \
+            flow-type udp4 \
+            dst-port $RELAY_PORT \
+            action $RELAY_CPU
 
-# Check the rule
-ethtool -u $NIC_IFACE
+    # Check the rule
+    ethtool -u $NIC_IFACE
 
-# Get all the possible NIC IRQs
-NIC_IRQ=$(grep ${NIC_IFACE}-TxRx-${RELAY_CPU}$ /proc/interrupts | awk '{print $1}' | tr -d ':')
+    # Get all the possible NIC IRQs
+    NIC_IRQ=$(grep ${NIC_IFACE}-TxRx-${RELAY_CPU}$ /proc/interrupts | awk '{print $1}' | tr -d ':')
 
-if [[ -n "$NIC_IRQ" ]]; then
-        CPU_MASK=$(printf "%x" $((1 << RELAY_CPU)))
-        echo "$CPU_MASK" > /proc/irq/$NIC_IRQ/smp_affinity
-        echo "Pinned IRQ $NIC_IRQ to CPU $RELAY_CPU (mask 0x$CPU_MASK)"
-else    
-        echo "WARNING: Could not find IRQ for ${NIC_IFACE}-TxRx-${RELAY_CPU}"
-        echo "Available IRQs:"
-        grep "$NIC_IFACE" /proc/interrupts
-fi
+    if [[ -n "$NIC_IRQ" ]]; then
+            CPU_MASK=$(printf "%x" $((1 << RELAY_CPU)))
+            echo "$CPU_MASK" > /proc/irq/$NIC_IRQ/smp_affinity
+            echo "Pinned IRQ $NIC_IRQ to CPU $RELAY_CPU (mask 0x$CPU_MASK)"
+    else    
+            echo "WARNING: Could not find IRQ for ${NIC_IFACE}-TxRx-${RELAY_CPU}"
+            echo "Available IRQs:"
+            grep "$NIC_IFACE" /proc/interrupts
+    fi
+done
 
 # Download perf
-KERNEL_VERSION=$(uname -a |awk '{print $3}')
+KERNEL_VERSION=$(uname -r)
 sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y
 
 # Give permissions to the perf
@@ -113,7 +114,7 @@ sudo sysctl -p /etc/sysctl.d/99-perf.conf
 fi # Relay role
 
 # Clone the repo
-git clone https://github.com/facebookexperimental/moxygen.git
+[ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
 
 # Download dependent packages" 
@@ -129,5 +130,4 @@ eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
 # export the LD_LIBRARY_PATH 
 echo "export LD_LIBRARY_PATH=$(find ~/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc
 
-done
 echo "Setup completed: $(date)"

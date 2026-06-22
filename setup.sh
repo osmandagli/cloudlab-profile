@@ -117,6 +117,8 @@ fi # Relay role
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
 
+apt install python3-pip
+
 # Download dependent packages" 
 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
 sudo apt install g++ python3-dev -y

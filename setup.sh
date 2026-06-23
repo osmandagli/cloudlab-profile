@@ -2,6 +2,7 @@
 
 set -euo pipefail
 mkdir -p /local/logs
+cd /local/repository
 exec > /local/logs/setup.log 2>&1
 
 echo "Setup started $(date)"
@@ -117,7 +118,28 @@ fi # Relay role
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
 
-apt install g++ python3-dev python3-pip -y
+apt-get install -y \	
+  g++ \
+  python3-dev \
+  python3-pip \
+  libdouble-conversion-dev \
+  libgoogle-glog-dev \
+  libgflags-dev \
+  libevent-dev \
+  libssl-dev \
+  libunwind-dev \
+  libdwarf-dev \
+  libelf-dev \
+  libsnappy-dev \
+  liblz4-dev \
+  libzstd-dev \
+  libbz2-dev \
+  liblzma-dev \
+  libsodium-dev \
+  libfmt-dev \
+  libbison-dev \
+  libflex-dev \
+  libboost-all-dev
 
 # Download dependent packages" 
 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen

@@ -118,7 +118,7 @@ fi # Relay role
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
 
-apt install -y \	
+apt install -y \
   g++ \
   python3-dev \
   python3-pip \

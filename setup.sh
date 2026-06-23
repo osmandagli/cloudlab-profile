@@ -122,24 +122,7 @@ apt install -y \
   g++ \
   python3-dev \
   python3-pip \
-  libdouble-conversion-dev \
-  libgoogle-glog-dev \
-  libgflags-dev \
-  libevent-dev \
-  libssl-dev \
-  libunwind-dev \
-  libdwarf-dev \
-  libelf-dev \
-  libsnappy-dev \
-  liblz4-dev \
-  libzstd-dev \
-  libbz2-dev \
-  liblzma-dev \
-  libsodium-dev \
-  libfmt-dev \
-  libbison-dev \
-  libflex-dev \
-  libboost-all-dev
+  libdouble-conversion-dev
 
 # Download dependent packages" 
 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
@@ -147,8 +130,10 @@ apt install -y \
 # Set env variables for building
 eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
 
+mkdir -p /local/moxygen_build
+
 # Build the moxygen
-./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path ~/moxygen_build --build-dir ~/moxygen_build/build --install-dir ~/moxygen_build
+./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path /local/moxygen_build --build-dir /local/moxygen_build/build --install-dir /local/moxygen_build
 
 # export the LD_LIBRARY_PATH 
 echo "export LD_LIBRARY_PATH=$(find ~/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc

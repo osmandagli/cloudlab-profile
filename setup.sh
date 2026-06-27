@@ -117,6 +117,7 @@ fi # Relay role
 # Clone the repo
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
+git checkout 0aec257cdc25ef0041003919b045d673be36cac5
 
 apt install -y \
   g++ \

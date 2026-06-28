@@ -117,7 +117,7 @@ fi # Relay role
 # Clone the repo
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
-git checkout 0aec257cdc25ef0041003919b045d673be36cac5
+#git checkout 0aec257cdc25ef0041003919b045d673be36cac5
 
 apt install -y \
   g++ \
@@ -126,17 +126,17 @@ apt install -y \
   libdouble-conversion-dev
 
 # Download dependent packages" 
-./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
+#./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
 
 # Set env variables for building
-eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
+#eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
 
 mkdir -p /local/moxygen_build
 
 # Build the moxygen
-./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path /local/moxygen_build --build-dir /local/moxygen_build/build --install-dir /local/moxygen_build
+#./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path /local/moxygen_build --build-dir /local/moxygen_build/build --install-dir /local/moxygen_build
 
 # export the LD_LIBRARY_PATH 
-echo "export LD_LIBRARY_PATH=$(find ~/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc
+#echo "export LD_LIBRARY_PATH=$(find ~/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc
 
-echo "Setup completed: $(date)"
+echo "Setup completed: $(date)."

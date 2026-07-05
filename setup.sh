@@ -124,6 +124,10 @@ apt install -y \
   python3-pip \
   libdouble-conversion-dev
 
+if [[ "$ROLE" == "publisher" || "$ROLE" == "subscriber" ]]; then 
+    apt install -y ffmpeg
+fi
+
 # Download dependent packages 
 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
 
@@ -136,6 +140,14 @@ mkdir -p /local/moxygen_build
 ./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path /local/moxygen_build --build-dir /local/moxygen_build/build --install-dir /local/moxygen_build
 
 # export the LD_LIBRARY_PATH 
-echo "export LD_LIBRARY_PATH=$(find ~/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc
+echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> /users/odagli/.bashrc
+
+if [[ "$ROLE" == "relay" ]]; then 
+    cd /local/repository/moxygen/scripts
+    bash create-server-certs.sh
+fi
+
+# change ownership of moxygen
+chown odagli: -R /local
 
 echo "Setup completed: $(date)."

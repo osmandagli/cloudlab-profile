@@ -15,10 +15,14 @@ GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
 SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 
+# Where the two WebTransport-fix patch files live:
+#   moxygen-wt-buffer.patch  proxygen-wt-defer.patch
+PATCH_DIR=${PATCH_DIR:-/local/repository/patches}
+
 apt update
 
 write_startup_script() {
-	cat > /etc/rc.local << EOF
+    cat > /etc/rc.local << EOF
 #!/bin/bash
 bash $SCRIPT_PATH
 exit 0
@@ -26,16 +30,16 @@ EOF
 
 chmod +x /etc/rc.local
 }
-if [[ "$ROLE" == "relay" ]]; then 
+if [[ "$ROLE" == "relay" ]]; then
 # Disable Hyperthreading
 if [[ ! -f "$HT_DISABLED_MARKER" ]]; then
-	echo "Disabling HT via GRUB..."
-	sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nosmt isolcpus=$RELAY_CPU nohz_full=$RELAY_CPU rcu_nocbs=$RELAY_CPU\"/" $GRUB_CFG
-	update-grub
-	touch "$HT_DISABLED_MARKER"
-	write_startup_script
-	reboot
-	exit 0
+    echo "Disabling HT via GRUB..."
+    sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nosmt isolcpus=$RELAY_CPU nohz_full=$RELAY_CPU rcu_nocbs=$RELAY_CPU\"/" $GRUB_CFG
+    update-grub
+    touch "$HT_DISABLED_MARKER"
+    write_startup_script
+    reboot
+    exit 0
 fi
 
 echo "Post reboot setup: $(date)"
@@ -74,7 +78,7 @@ done
 
 echo "Setting flow director"
 
-# Disable irbalance service 
+# Disable irbalance service
 systemctl stop irqbalance
 systemctl disable irqbalance
 
@@ -96,7 +100,7 @@ for NIC_IFACE in "${NIC_IFACES[@]}"; do
             CPU_MASK=$(printf "%x" $((1 << RELAY_CPU)))
             echo "$CPU_MASK" > /proc/irq/$NIC_IRQ/smp_affinity
             echo "Pinned IRQ $NIC_IRQ to CPU $RELAY_CPU (mask 0x$CPU_MASK)"
-    else    
+    else
             echo "WARNING: Could not find IRQ for ${NIC_IFACE}-TxRx-${RELAY_CPU}"
             echo "Available IRQs:"
             grep "$NIC_IFACE" /proc/interrupts
@@ -124,11 +128,11 @@ apt install -y \
   python3-pip \
   libdouble-conversion-dev
 
-if [[ "$ROLE" == "publisher" || "$ROLE" == "subscriber" ]]; then 
+if [[ "$ROLE" == "publisher" || "$ROLE" == "subscriber" ]]; then
     apt install -y ffmpeg
 fi
 
-# Download dependent packages 
+# Download dependent packages
 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
 
 # Set env variables for building
@@ -136,13 +140,25 @@ eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
 
 mkdir -p /local/moxygen_build
 
+# ---- Apply http3+webtransport SIGSEGV fix (WebTransport early-stream race) ----
+# moxygen source patch (idempotent)
+grep -q drainPendingWtStreams moxygen/MoQWebTransportClient.h \
+  || git apply --ignore-space-change "$PATCH_DIR/moxygen-wt-buffer.patch"
+
+# proxygen is a getdeps dependency: getdeps re-fetches it on every --clean build,
+# so register the patch with getdeps' native patchfile mechanism to auto-apply it.
+cp "$PATCH_DIR/proxygen-wt-defer.patch" build/fbcode_builder/patches/
+grep -q '^patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen \
+  || sed -i '/^job_weight_mib = 3072/a patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen
+# ------------------------------------------------------------------------------
+
 # Build moxygen
 ./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path /local/moxygen_build --build-dir /local/moxygen_build/build --install-dir /local/moxygen_build
 
-# export the LD_LIBRARY_PATH 
+# export the LD_LIBRARY_PATH
 echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> /users/odagli/.bashrc
 
-if [[ "$ROLE" == "relay" ]]; then 
+if [[ "$ROLE" == "relay" ]]; then
     cd /local/repository/moxygen/scripts
     bash create-server-certs.sh
 fi

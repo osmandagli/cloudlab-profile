@@ -1,0 +1,157 @@
+diff --git a/proxygen/lib/http/session/HQSession.cpp b/proxygen/lib/http/session/HQSession.cpp
+index a75071d90..732c378c3 100644
+--- a/proxygen/lib/http/session/HQSession.cpp
++++ b/proxygen/lib/http/session/HQSession.cpp
+@@ -2656,6 +2656,9 @@ void HQSession::HQStreamTransportBase::onHeadersComplete(
+       VLOG(4) << "Received a 200 resp for a WT connect req";
+       session_.wtFilter_ = WebTransportFilter::make(&txn_, CodecVersion::H3);
+       session_.wtFilter_->setWebTransportImpl(txn_.getWebTransport());
++      // Any peer-initiated WT streams that arrived before this CONNECT response
++      // were deferred; now that the WebTransport is established, deliver them.
++      session_.flushPendingWTIngressStreams(*this);
+     }
+   }
+   if (!txn_.getHandler()) {
+@@ -3542,6 +3545,16 @@ void HQSession::dispatchUniWTStream(quic::StreamId streamID,
+     if (!connectStream->wtSess_->acquireIngressStream(streamID)) {
+       rejectStream(streamID);
+     }
++  } else if (!connectStream->txn_.hasWebTransport()) {
++    // The peer opened a WT stream before the WebTransport session is
++    // established on this side (e.g. on the client, before the CONNECT
++    // response is processed). Defer it; flushPendingWTIngressStreams() will
++    // re-dispatch once the WebTransport is created. The preface bytes have
++    // already been consumed above; the remaining stream data stays buffered
++    // in QUIC until we set a read callback.
++    VLOG(4) << __func__ << ": deferring WT uni stream id=" << streamID
++            << " until WebTransport is established sess=" << *this;
++    pendingWTIngressUniStreams_.push_back(streamID);
+   } else {
+     auto* handle = connectStream->txn_.onWebTransportUniStream(streamID);
+     sock_->setReadCallback(streamID, handle);
+@@ -3565,12 +3578,47 @@ void HQSession::dispatchBidiWTStream(HTTPCodec::StreamID streamID,
+     if (!connectStream->wtSess_->acquireIngressStream(streamID)) {
+       rejectStream(streamID);
+     }
++  } else if (!connectStream->txn_.hasWebTransport()) {
++    // See dispatchUniWTStream: defer until the WebTransport is established.
++    VLOG(4) << __func__ << ": deferring WT bidi stream id=" << streamID
++            << " until WebTransport is established sess=" << *this;
++    pendingWTIngressBidiStreams_.push_back(streamID);
+   } else {
+     auto handle = connectStream->txn_.onWebTransportBidiStream(streamID);
+     sock_->setReadCallback(streamID, handle.readHandle);
+   }
+ }
+ 
++// Re-dispatch WT ingress streams that arrived before the WebTransport session
++// was established on this side.
++void HQSession::flushPendingWTIngressStreams(
++    HQStreamTransportBase& connectStream) {
++  if (!pendingWTIngressUniStreams_.empty()) {
++    auto uniStreams = std::move(pendingWTIngressUniStreams_);
++    pendingWTIngressUniStreams_.clear();
++    for (auto streamID : uniStreams) {
++      VLOG(4) << __func__ << ": flushing deferred WT uni stream id=" << streamID
++              << " sess=" << *this;
++      auto* handle = connectStream.txn_.onWebTransportUniStream(streamID);
++      if (handle) {
++        sock_->setReadCallback(streamID, handle);
++      }
++    }
++  }
++  if (!pendingWTIngressBidiStreams_.empty()) {
++    auto bidiStreams = std::move(pendingWTIngressBidiStreams_);
++    pendingWTIngressBidiStreams_.clear();
++    for (auto streamID : bidiStreams) {
++      VLOG(4) << __func__ << ": flushing deferred WT bidi stream id=" << streamID
++              << " sess=" << *this;
++      auto handle = connectStream.txn_.onWebTransportBidiStream(streamID);
++      if (handle.readHandle) {
++        sock_->setReadCallback(streamID, handle.readHandle);
++      }
++    }
++  }
++}
++
+ // Methods specific to StreamTransport subclasses
+ //
+ //
+diff --git a/proxygen/lib/http/session/HQSession.h b/proxygen/lib/http/session/HQSession.h
+index 32a777881..cf9599d62 100644
+--- a/proxygen/lib/http/session/HQSession.h
++++ b/proxygen/lib/http/session/HQSession.h
+@@ -667,6 +667,10 @@ class HQSession
+   HQStreamTransportBase* FOLLY_NULLABLE
+   findWTSessionOrAbort(quic::StreamId sessionID, quic::StreamId streamId);
+ 
++  // Re-dispatch WT ingress streams that were deferred because they arrived
++  // before the WebTransport session was established (see dispatchUniWTStream).
++  void flushPendingWTIngressStreams(HQStreamTransportBase& connectStream);
++
+   /**
+    * HQSession is an HTTPSessionBase that uses QUIC as the underlying transport
+    *
+@@ -1991,6 +1995,11 @@ class HQSession
+ 
+   std::unique_ptr<WebTransportFilter> wtFilter_{};
+ 
++  // Peer-initiated WT streams that arrived before the WebTransport session was
++  // established, to be re-dispatched by flushPendingWTIngressStreams().
++  std::vector<quic::StreamId> pendingWTIngressUniStreams_;
++  std::vector<quic::StreamId> pendingWTIngressBidiStreams_;
++
+   /**
+    * The maximum number of concurrent transactions that this session's peer
+    * may create.
+diff --git a/proxygen/lib/http/session/HTTPTransaction.cpp b/proxygen/lib/http/session/HTTPTransaction.cpp
+index e84ba3f06..c675411d7 100644
+--- a/proxygen/lib/http/session/HTTPTransaction.cpp
++++ b/proxygen/lib/http/session/HTTPTransaction.cpp
+@@ -1824,6 +1824,13 @@ WebTransportImpl::BidiStreamHandle HTTPTransaction::onWebTransportBidiStream(
+     return {.readHandle = nullptr, .writeHandle = nullptr};
+   }
+   refreshTimeout();
++  // Defensive: a peer-initiated WT stream must not be delivered before the
++  // WebTransport session is established (webTransportImpl_ created when the
++  // CONNECT is accepted). HQSession defers early streams; this guard just
++  // avoids dereferencing a null webTransportImpl_ if one slips through.
++  if (!webTransportImpl_) {
++    return {.readHandle = nullptr, .writeHandle = nullptr};
++  }
+   auto handle = webTransportImpl_->onWebTransportBidiStream(id);
+   handler_->onWebTransportBidiStream(
+       id, {.readHandle = handle.readHandle, .writeHandle = handle.writeHandle});
+@@ -1839,6 +1846,13 @@ WebTransportImpl::StreamReadHandle* HTTPTransaction::onWebTransportUniStream(
+     return nullptr;
+   }
+   refreshTimeout();
++  // Defensive: a peer-initiated WT stream must not be delivered before the
++  // WebTransport session is established (webTransportImpl_ created when the
++  // CONNECT is accepted). HQSession defers early streams; this guard just
++  // avoids dereferencing a null webTransportImpl_ if one slips through.
++  if (!webTransportImpl_) {
++    return nullptr;
++  }
+   auto handle = webTransportImpl_->onWebTransportUniStream(id);
+ 
+   handler_->onWebTransportUniStream(id, handle);
+diff --git a/proxygen/lib/http/session/HTTPTransaction.h b/proxygen/lib/http/session/HTTPTransaction.h
+index 9d22fda2d..6ac16a503 100644
+--- a/proxygen/lib/http/session/HTTPTransaction.h
++++ b/proxygen/lib/http/session/HTTPTransaction.h
+@@ -1614,6 +1614,14 @@ class HTTPTransaction
+     return webTransportImpl_.get();
+   }
+ 
++  // Null-safe check for whether the WebTransport session has been established
++  // (i.e. webTransportImpl_ created). Unlike getWebTransport(), this never
++  // constructs it and never CHECKs on a missing transport provider, so it is
++  // safe to call before the CONNECT has been accepted.
++  [[nodiscard]] bool hasWebTransport() const {
++    return webTransportImpl_ != nullptr;
++  }
++
+   void setWTTransportProvider(WebTransportImpl::TransportProvider* tp) {
+     wtTransportProvider_ = tp;
+   }

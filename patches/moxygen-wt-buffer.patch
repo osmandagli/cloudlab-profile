@@ -1,0 +1,77 @@
+diff --git a/moxygen/MoQWebTransportClient.cpp b/moxygen/MoQWebTransportClient.cpp
+index 5591da3f..2e291ba6 100644
+--- a/moxygen/MoQWebTransportClient.cpp
++++ b/moxygen/MoQWebTransportClient.cpp
+@@ -152,6 +152,10 @@ folly::coro::Task<void> MoQWebTransportClient::setupMoQSession(
+ 
+   completeSetupMoQSession(
+       wt, std::nullopt, std::move(publishHandler), std::move(subscribeHandler));
++  // moqSession_ is now created and started; deliver any WT streams/datagrams
++  // that the peer opened before this point (they were buffered to avoid being
++  // dropped).
++  httpHandler_.drainPendingWtStreams();
+   co_await awaitSetupComplete();
+ }
+ 
+diff --git a/moxygen/MoQWebTransportClient.h b/moxygen/MoQWebTransportClient.h
+index f2652f7c..b662ef91 100644
+--- a/moxygen/MoQWebTransportClient.h
++++ b/moxygen/MoQWebTransportClient.h
+@@ -77,6 +77,11 @@ class MoQWebTransportClient : public MoQClient {
+         proxygen::WebTransport::BidiStreamHandle handle) noexcept override {
+       if (moqSession_) {
+         moqSession_->onNewBidiStream(std::move(handle));
++      } else {
++        // The peer can open WT streams before the MoQ session is wired up
++        // (the CONNECT response is processed before completeSetupMoQSession
++        // runs). Buffer and deliver them in drainPendingWtStreams().
++        pendingBidiStreams_.push_back(std::move(handle));
+       }
+     }
+     void onWebTransportUniStream(
+@@ -84,17 +89,45 @@ class MoQWebTransportClient : public MoQClient {
+         proxygen::WebTransport::StreamReadHandle* handle) noexcept override {
+       if (moqSession_) {
+         moqSession_->onNewUniStream(handle);
++      } else {
++        pendingUniStreams_.push_back(handle);
+       }
+     }
+     void onDatagram(std::unique_ptr<folly::IOBuf> datagram) noexcept override {
+       if (moqSession_) {
+         moqSession_->onDatagram(std::move(datagram));
++      } else {
++        pendingDatagrams_.push_back(std::move(datagram));
+       }
+     }
+ 
++    // Deliver any WT streams/datagrams that were buffered because they arrived
++    // before moqSession_ was created. Call once moqSession_ is set and started.
++    void drainPendingWtStreams() {
++      if (!moqSession_) {
++        return;
++      }
++      for (auto& handle : pendingBidiStreams_) {
++        moqSession_->onNewBidiStream(std::move(handle));
++      }
++      pendingBidiStreams_.clear();
++      for (auto* handle : pendingUniStreams_) {
++        moqSession_->onNewUniStream(handle);
++      }
++      pendingUniStreams_.clear();
++      for (auto& datagram : pendingDatagrams_) {
++        moqSession_->onDatagram(std::move(datagram));
++      }
++      pendingDatagrams_.clear();
++    }
++
+     MoQWebTransportClient& client_;
+     std::shared_ptr<MoQSession>& moqSession_;
+     proxygen::HTTPTransaction* txn_{nullptr};
++    // WT streams/datagrams received before moqSession_ was created.
++    std::vector<proxygen::WebTransport::BidiStreamHandle> pendingBidiStreams_;
++    std::vector<proxygen::WebTransport::StreamReadHandle*> pendingUniStreams_;
++    std::vector<std::unique_ptr<folly::IOBuf>> pendingDatagrams_;
+     std::pair<
+         folly::coro::Promise<proxygen::WebTransport*>,
+         folly::coro::Future<proxygen::WebTransport*>>

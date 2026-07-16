@@ -142,14 +142,14 @@ mkdir -p /local/moxygen_build
 
 # ---- Apply http3+webtransport SIGSEGV fix (WebTransport early-stream race) ----
 # moxygen source patch (idempotent)
-grep -q drainPendingWtStreams moxygen/MoQWebTransportClient.h \
-  || git apply --ignore-space-change "$PATCH_DIR/moxygen-wt-buffer.patch"
+#grep -q drainPendingWtStreams moxygen/MoQWebTransportClient.h \
+#  || git apply --ignore-space-change "$PATCH_DIR/moxygen-wt-buffer.patch"
 
 # proxygen is a getdeps dependency: getdeps re-fetches it on every --clean build,
 # so register the patch with getdeps' native patchfile mechanism to auto-apply it.
-cp "$PATCH_DIR/proxygen-wt-defer.patch" build/fbcode_builder/patches/
-grep -q '^patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen \
-  || sed -i '/^job_weight_mib = 3072/a patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen
+#cp "$PATCH_DIR/proxygen-wt-defer.patch" build/fbcode_builder/patches/
+#grep -q '^patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen \
+#  || sed -i '/^job_weight_mib = 3072/a patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen
 # ------------------------------------------------------------------------------
 
 # Build moxygen

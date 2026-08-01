@@ -153,7 +153,11 @@ mkdir -p /local/moxygen_build
 # ------------------------------------------------------------------------------
 
 # Build moxygen
-./build/fbcode_builder/getdeps.py build moxygen --clean --scratch-path /local/moxygen_build --build-dir /local/moxygen_build/build --install-dir /local/moxygen_build
+./build/fbcode_builder/getdeps.py build moxygen \
+    --allow-system-packages \
+    --scratch-path /local/moxygen_build \
+    --build-dir /local/moxygen_build/build \
+    --install-dir /local/moxygen_build
 
 # export the LD_LIBRARY_PATH
 echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> /users/odagli/.bashrc

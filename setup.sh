@@ -9,7 +9,7 @@ echo "Setup started $(date)"
 
 ROLE=${1:-relay}
 RELAY_CPU=2
-NIC_IFACES=("eno12409" "enp23s0f0")
+NIC_IFACES=("eno12409np1" "enp23s0f0np0")
 RELAY_PORT=4433
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
@@ -76,12 +76,12 @@ for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
     echo "  $name: disabled=$disabled"
 done
 
+# Disable irbalance service
+#systemctl stop irqbalance
+#systemctl disable irqbalance
+
 echo "Setting flow director"
 
-# Disable irbalance service
-systemctl stop irqbalance
-systemctl disable irqbalance
-<<com
 for NIC_IFACE in "${NIC_IFACES[@]}"; do
 
     # Add the rule to the interface
@@ -106,7 +106,7 @@ for NIC_IFACE in "${NIC_IFACES[@]}"; do
             grep "$NIC_IFACE" /proc/interrupts
     fi
 done
-com
+
 # Download perf
 KERNEL_VERSION=$(uname -r)
 sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y
@@ -126,14 +126,15 @@ apt install -y \
   g++ \
   python3-dev \
   python3-pip \
-  libdouble-conversion-dev
+  libdouble-conversion-dev \
+  python3-pex
 
 if [[ "$ROLE" == "publisher" || "$ROLE" == "subscriber" ]]; then
     apt install -y ffmpeg
 fi
 
 # Download dependent packages
-./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
+PIP_BREAK_SYSTEM_PACKAGES=1 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
 
 # Set env variables for building
 eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)

@@ -84,6 +84,12 @@ echo "Setting flow director"
 
 for NIC_IFACE in "${NIC_IFACES[@]}"; do
 
+    EXISTING_RULES=$(ethtool -n $NIC_IFACE 2>/dev/null | grep "Filter:" | awk '{print $2}')
+    for rule_id in $EXISTING_RULES; do
+        echo "Deleting existing rule $rule_id on $NIC_IFACE"
+        ethtool -N $NIC_IFACE delete $rule_id
+    done
+
     # Add the rule to the interface
     ethtool -U $NIC_IFACE \
             flow-type udp4 \

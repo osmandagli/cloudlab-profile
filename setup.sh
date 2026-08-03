@@ -81,7 +81,7 @@ echo "Setting flow director"
 # Disable irbalance service
 systemctl stop irqbalance
 systemctl disable irqbalance
-
+<<com
 for NIC_IFACE in "${NIC_IFACES[@]}"; do
 
     # Add the rule to the interface
@@ -106,7 +106,7 @@ for NIC_IFACE in "${NIC_IFACES[@]}"; do
             grep "$NIC_IFACE" /proc/interrupts
     fi
 done
-
+com
 # Download perf
 KERNEL_VERSION=$(uname -r)
 sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y

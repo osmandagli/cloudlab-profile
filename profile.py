@@ -15,7 +15,7 @@ request = portal.context.makeRequestRSpec()
 # Relay
 relay = request.RawPC("relay")
 relay.hardware_type = "c6620"
-relay.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD"
+relay.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-STD"
 relay.addService(rspec.Execute(
     shell="bash",
     command="sudo bash /local/repository/setup.sh relay"
@@ -24,7 +24,7 @@ relay.addService(rspec.Execute(
 # Publisher
 publisher = request.RawPC("publisher")
 publisher.hardware_type = "c6620"
-publisher.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD"
+publisher.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-STD"
 publisher.addService(rspec.Execute(
     shell="bash",
     command="sudo bash /local/repository/setup.sh publisher"
@@ -33,7 +33,7 @@ publisher.addService(rspec.Execute(
 # Subscriber 
 subscriber = request.RawPC("subscriber")
 subscriber.hardware_type = "c6620"
-subscriber.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD"
+subscriber.disk_image = "urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-STD"
 subscriber.addService(rspec.Execute(
     shell="bash",
     command="sudo bash /local/repository/setup.sh subscriber"

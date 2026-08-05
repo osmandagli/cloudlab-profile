@@ -19,6 +19,7 @@ FIFO_DIR=${FIFO_DIR:-$HOME/Movies}
 LOG_DIR=${LOG_DIR:-/tmp/moq-load/pub}
 STREAMER=${STREAMER:-/local/moxygen_build/bin/moqflvstreamerclient}
 NS_PREFIX=${NS_PREFIX:-flvstreamer}
+PRE=${PRE:-$HOME/Movies/preenc-${RES}-${VB}.flv}
 
 pids=()
 
@@ -42,8 +43,29 @@ command -v ffmpeg >/dev/null || { echo "FATAL: ffmpeg not in PATH" >&2; exit 1; 
 mkdir -p "$LOG_DIR" "$FIFO_DIR"
 W=${RES%x*}; H=${RES#*x}
 
-echo "==> $N streams -> $RELAY_URL"
-echo "==> ${RES} @ ${VB} video + ${AB} audio, looping $(basename "$SRC")"
+# A live x264 1080p encode costs ~1.2 cores, so past ~45 streams this box
+# saturates and every ffmpeg silently falls behind real-time -- the relay then
+# sees a fraction of the intended load, differing run to run. If make-source.sh
+# has produced a pre-encoded file at this RES/VB, replay it with -c copy (~2%
+# CPU per stream) so the offered load is exactly N x VB every time.
+if [ -s "$PRE" ]; then
+  MODE=copy
+  echo "==> $N streams -> $RELAY_URL"
+  echo "==> replaying pre-encoded $(basename "$PRE") with -c copy"
+else
+  MODE=encode
+  cores=$(nproc); max=$(( cores * 100 / 120 ))
+  echo "==> $N streams -> $RELAY_URL"
+  echo "==> ${RES} @ ${VB} video + ${AB} audio, live-encoding $(basename "$SRC")"
+  if [ "$N" -gt "$max" ]; then
+    echo
+    echo "  !! $N live encodes need ~$(( N * 120 / 100 )) cores, this box has $cores."
+    echo "     ffmpeg will fall behind real-time and the relay will see well under"
+    echo "     $N streams' worth of traffic. Run ./make-source.sh first, or use"
+    echo "     N<=$max. Continuing in 5s -- Ctrl-C to abort."
+    sleep 5
+  fi
+fi
 echo "==> namespaces: ${NS_PREFIX}1 .. ${NS_PREFIX}${N}"
 echo
 
@@ -63,15 +85,23 @@ for i in $(seq 1 "$N"); do
     > "$LOG_DIR/streamer$i.log" 2>&1 &
   pids+=($!)
 
-  # -stream_loop -1 is required: the clip is only 28s and a profiling run is 60s.
-  ffmpeg -nostdin -y -hide_banner -loglevel warning \
-    -stream_loop -1 -re -i "$SRC" \
-    -vf "scale=$W:$H" \
-    -c:v libx264 -b:v "$VB" -g 60 -keyint_min 60 \
-    -profile:v baseline -preset veryfast \
-    -c:a aac -b:a "$AB" \
-    -f flv "$fifo" \
-    > "$LOG_DIR/ffmpeg$i.log" 2>&1 &
+  # -stream_loop -1 is required: the source is shorter than a profiling run.
+  if [ "$MODE" = copy ]; then
+    ffmpeg -nostdin -y -hide_banner -loglevel warning \
+      -stream_loop -1 -re -i "$PRE" \
+      -c copy \
+      -f flv "$fifo" \
+      > "$LOG_DIR/ffmpeg$i.log" 2>&1 &
+  else
+    ffmpeg -nostdin -y -hide_banner -loglevel warning \
+      -stream_loop -1 -re -i "$SRC" \
+      -vf "scale=$W:$H" \
+      -c:v libx264 -b:v "$VB" -g 60 -keyint_min 60 \
+      -profile:v baseline -preset veryfast \
+      -c:a aac -b:a "$AB" \
+      -f flv "$fifo" \
+      > "$LOG_DIR/ffmpeg$i.log" 2>&1 &
+  fi
   pids+=($!)
 
   printf "  [%2d/%d] %s%d\n" "$i" "$N" "$NS_PREFIX" "$i"

@@ -33,6 +33,8 @@ RECEIVER=${RECEIVER:-/local/moxygen_build/bin/moqflvreceiverclient}
 LOG_DIR=${LOG_DIR:-/tmp/moq-load/sub}
 NS_PREFIX=${NS_PREFIX:-flvstreamer}
 RAMP=${RAMP:-0.3}        # delay between receiver launches (avoid a thundering herd)
+SETTLE=${SETTLE:-10}     # seconds to wait after launch before the liveness check
+WATCH=${WATCH:-10}       # re-check liveness every WATCH seconds (0 = off)
 
 pids=()
 
@@ -52,9 +54,20 @@ trap cleanup EXIT INT TERM
 mkdir -p "$LOG_DIR"
 
 total=$(( N * FANOUT ))
+ramp_secs=$(awk -v t="$total" -v r="$RAMP" 'BEGIN{printf "%d", t*r}')
 echo "==> $N namespaces x $FANOUT subscribers = $total receivers -> $RELAY_URL"
 echo "==> ratio 1:$FANOUT  (subscribing to ${NS_PREFIX}1 .. ${NS_PREFIX}${N})"
+echo "==> ramp ${ramp_secs}s at ${RAMP}s/receiver -- do NOT start profiling before it finishes"
 echo
+
+# Count receivers still alive. Sessions dying mid-run is the failure mode that
+# silently deflates relay CPU: the relay forwards to fewer subscribers than you
+# think it has, so the run looks "fine" but measures the wrong load.
+alive_count() {
+  local n=0 p
+  for p in "${pids[@]}"; do kill -0 "$p" 2>/dev/null && n=$(( n + 1 )); done
+  echo "$n"
+}
 
 k=0
 for i in $(seq 1 "$N"); do
@@ -73,11 +86,54 @@ for i in $(seq 1 "$N"); do
 done
 
 echo
-echo "==> All $total receivers launched. Sanity checks:"
-echo "      grep -il 'error\\|fail' $LOG_DIR/*.log     # subscribe failures"
-echo "    On the relay, confirm the fan-out actually happened:"
-echo "      egress bitrate should be ~${FANOUT}x ingress (ss -i / ifstat on the sub NIC)"
-echo "      relay should hold $total subscriber sessions, not $N"
+echo "==> All $total launched. Settling ${SETTLE}s before liveness check..."
+sleep "$SETTLE"
+
+live=$(alive_count)
+failed=$(grep -ilE 'error|fail' "$LOG_DIR"/*.log 2>/dev/null | wc -l)
+
+echo
+echo "  receivers alive : $live / $total"
+echo "  logs with errors: $failed / $total"
+
+if [ "$live" -lt "$total" ] || [ "$failed" -gt 0 ]; then
+  echo
+  echo "  !! NOT all subscribers are healthy. The relay is fanning out to $live"
+  echo "     sessions, not $total -- relay CPU will read low and will NOT be"
+  echo "     reproducible between runs. Do not trust profiling from this run."
+  echo
+  echo "     Most likely the WebTransport early-stream race: FANOUT subscribers"
+  echo "     hit the same namespace at once. Confirm the relay binary is patched:"
+  echo "       grep -r drainPendingWtStreams /local/repository/moxygen/   # must hit"
+  echo "       grep patchfile /local/repository/moxygen/build/fbcode_builder/manifests/proxygen"
+  echo "     Both patches are commented out in setup.sh:148-155 by default."
+  echo
+  echo "     Sample failures:"
+  grep -ilE 'error|fail' "$LOG_DIR"/*.log 2>/dev/null | head -3 \
+    | xargs -r -I{} sh -c 'echo "       --- {}"; grep -iE "error|fail" {} | head -2 | sed "s/^/       /"'
+else
+  echo
+  echo "  OK: all $total subscriber sessions healthy."
+fi
+
+echo
+echo "==> Confirm the fan-out on the relay: egress should be ~${FANOUT}x ingress,"
+echo "    and it should hold $total subscriber sessions, not $N."
+echo "    Publisher side: N=$N ./verify-load.sh"
 echo
 echo "==> Ctrl-C to stop."
+
+# Keep reporting: a session that dies at minute 3 invalidates the run just as
+# thoroughly as one that never started, and nothing else would surface it.
+if [ "$WATCH" -gt 0 ]; then
+  while sleep "$WATCH"; do
+    now=$(alive_count)
+    [ "$now" -ne "$live" ] && {
+      echo "  [$(date +%T)] receivers alive: $now / $total  (was $live)"
+      live=$now
+    }
+    [ "$now" -eq 0 ] && { echo "  [$(date +%T)] all receivers gone."; break; }
+  done
+fi
+
 wait

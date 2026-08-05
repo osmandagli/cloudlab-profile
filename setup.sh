@@ -155,6 +155,10 @@ mkdir -p /local/moxygen_build
 #  || sed -i '/^job_weight_mib = 3072/a patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen
 # ------------------------------------------------------------------------------
 
+# Change the ftpmirro to original ftp server
+# Sometimes ftpmirror doesn't work
+grep -rl 'ftpmirror.gnu.org' . | xargs sed -i 's|ftpmirror\.gnu\.org|ftp.gnu.org|g'
+
 # Build moxygen
 ./build/fbcode_builder/getdeps.py build moxygen \
     --allow-system-packages \

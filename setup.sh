@@ -15,10 +15,6 @@ GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
 SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 
-# Where the two WebTransport-fix patch files live:
-#   moxygen-wt-buffer.patch  proxygen-wt-defer.patch
-PATCH_DIR=${PATCH_DIR:-/local/repository/patches}
-
 apt update
 
 write_startup_script() {
@@ -81,34 +77,6 @@ done
 #systemctl disable irqbalance
 
 
-#echo "Setting flow director"
-#
-#for NIC_IFACE in "${NIC_IFACES[@]}"; do
-#
-#    # Add the rule to the interface
-#    ethtool -U $NIC_IFACE \
-#            flow-type udp4 \
-#            dst-port $RELAY_PORT \
-#            action $RELAY_CPU
-#
-#    # Check the rule
-#    ethtool -u $NIC_IFACE
-#
-#    # Get all the possible NIC IRQs
-#    NIC_IRQ=$(grep ${NIC_IFACE}-TxRx-${RELAY_CPU}$ /proc/interrupts | awk '{print $1}' | tr -d ':')
-#
-#    if [[ -n "$NIC_IRQ" ]]; then
-#            CPU_MASK=$(printf "%x" $((1 << RELAY_CPU)))
-#            echo "$CPU_MASK" > /proc/irq/$NIC_IRQ/smp_affinity
-#            echo "Pinned IRQ $NIC_IRQ to CPU $RELAY_CPU (mask 0x$CPU_MASK)"
-#    else
-#            echo "WARNING: Could not find IRQ for ${NIC_IFACE}-TxRx-${RELAY_CPU}"
-#            echo "Available IRQs:"
-#            grep "$NIC_IFACE" /proc/interrupts
-#    fi
-#done
-
-
 # Download perf
 KERNEL_VERSION=$(uname -r)
 sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y
@@ -142,18 +110,6 @@ PIP_BREAK_SYSTEM_PACKAGES=1 ./build/fbcode_builder/getdeps.py install-system-dep
 eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
 
 mkdir -p /local/moxygen_build
-
-# ---- Apply http3+webtransport SIGSEGV fix (WebTransport early-stream race) ----
-# moxygen source patch (idempotent)
-#grep -q drainPendingWtStreams moxygen/MoQWebTransportClient.h \
-#  || git apply --ignore-space-change "$PATCH_DIR/moxygen-wt-buffer.patch"
-
-# proxygen is a getdeps dependency: getdeps re-fetches it on every --clean build,
-# so register the patch with getdeps' native patchfile mechanism to auto-apply it.
-#cp "$PATCH_DIR/proxygen-wt-defer.patch" build/fbcode_builder/patches/
-#grep -q '^patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen \
-#  || sed -i '/^job_weight_mib = 3072/a patchfile = proxygen-wt-defer.patch' build/fbcode_builder/manifests/proxygen
-# ------------------------------------------------------------------------------
 
 # Change the ftpmirro to original ftp server
 # Sometimes ftpmirror doesn't work

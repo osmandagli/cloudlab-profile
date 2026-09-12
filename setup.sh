@@ -96,6 +96,10 @@ fi # Relay role
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
 
+PIN=/local/repository/moxygen/build/deps/github_hashes/facebook/proxygen-rev.txt
+cp -a "$PIN" "$PIN.bak"
+echo "Subproject commit 4954ad12adc177a9654ef7b5f9c30a1bdc6d6658" | tee "$PIN"
+
 apt install -y \
   g++ \
   python3-dev \

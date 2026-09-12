@@ -40,7 +40,18 @@ subscriber.addService(rspec.Execute(
 ))
 
 # Links
-link_pub = request.Link(members=[publisher, relay])
-link_sub = request.Link(members=[subscriber, relay])
+lan = request.LAN("lan")
+
+if_relay = relay.addInterface("if_relay")
+if_relay.addAddress(rspec.IPv4Address("10.10.1.1", "255.255.255.0"))
+lan.addInterface(if_relay)
+
+if_pub = publisher.addInterface("if_pub")
+if_pub.addAddress(rspec.IPv4Address("10.10.1.2", "255.255.255.0"))
+lan.addInterface(if_pub)
+
+if_sub = subscriber.addInterface("if_sub")
+if_sub.addAddress(rspec.IPv4Address("10.10.1.3", "255.255.255.0"))
+lan.addInterface(if_sub)
 
 portal.context.printRequestRSpec()

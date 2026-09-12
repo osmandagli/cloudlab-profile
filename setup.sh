@@ -72,14 +72,18 @@ for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
     echo "  $name: disabled=$disabled"
 done
 
-# Disable irbalance service
-#systemctl stop irqbalance
-#systemctl disable irqbalance
-
-
 # Download perf
 KERNEL_VERSION=$(uname -r)
-sudo apt install linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION -y
+sudo apt install -y linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION \
+    clang llvm libelf-dev libpcap-dev build-essential libc6-dev-i386 m4 \
+    linux-tools-common linux-tools-generic \
+    tcpdump
+
+[ -d xdp-tutorial ] || git clone https://github.com/xdp-project/xdp-tutorial
+cd xdp-tutorial
+./configure
+make
+cd ..
 
 # Give permissions to the perf
 echo 'kernel.perf_event_paranoid=-1' | sudo tee /etc/sysctl.d/99-perf.conf

@@ -1,0 +1,170 @@
+From aa7362c9b8741fe4d8fc4f4920ea5be952eec2af Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Tue, 25 Aug 2026 14:26:50 +0200
+Subject: [PATCH 01/12] xdp integrated to moxygen
+
+---
+ CMakeLists.txt             |  2 ++
+ moxygen/CMakeLists.txt     |  2 ++
+ moxygen/MoQServer.cpp      |  7 +++++++
+ moxygen/xdp/CMakeLists.txt | 15 +++++++++++++++
+ moxygen/xdp/XdpSocket.cpp  | 17 +++++++++++++++++
+ moxygen/xdp/XdpSocket.h    | 39 ++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 82 insertions(+)
+ create mode 100644 moxygen/xdp/CMakeLists.txt
+ create mode 100644 moxygen/xdp/XdpSocket.cpp
+ create mode 100644 moxygen/xdp/XdpSocket.h
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 516875b8..c9d23527 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -88,6 +88,8 @@ add_compile_definitions(
+ )
+ find_package(gflags REQUIRED)
+ find_package(Zstd REQUIRED)
++find_package(LibBpf REQUIRED)
++find_package(LibXdp REQUIRED)
+ 
+ # Define BUILD_SAMPLES after find_package calls so it doesn't affect
+ # proxygen's BUILD_SAMPLES option during config
+diff --git a/moxygen/CMakeLists.txt b/moxygen/CMakeLists.txt
+index d77a57f5..c6f3b2cd 100644
+--- a/moxygen/CMakeLists.txt
++++ b/moxygen/CMakeLists.txt
+@@ -145,6 +145,7 @@ moxygen_add_library(moxygen_moq_server
+   SRCS
+     MoQServer.cpp
+   DEPS
++    moxygen_xdp
+     moxygen_events_moq_folly_executor_impl
+     moxygen_moq_types
+     proxygen::proxygen_http_session_hq_session
+@@ -340,6 +341,7 @@ add_subdirectory(msf)
+ add_subdirectory(proxy)
+ add_subdirectory(stats)
+ add_subdirectory(util)
++add_subdirectory(xdp)
+ 
+ add_subdirectory(relay)
+ 
+diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
+index 0d84e10e..c0d0d76a 100644
+--- a/moxygen/MoQServer.cpp
++++ b/moxygen/MoQServer.cpp
+@@ -17,6 +17,7 @@
+ #include <quic/common/address/QuicSocketAddressBridge.h>
+ #include <moxygen/MoQTypes.h>
+ #include <moxygen/events/MoQFollyExecutorImpl.h>
++#include "moxygen/xdp/XdpSocket.h"
+ 
+ #include <utility>
+ 
+@@ -124,6 +125,12 @@ MoQServer::MoQServer(
+ 
+   hqServer_ =
+       std::make_unique<HQServer>(params_, std::move(factory_), fizzContext_);
++  
++  auto listenerFactory = std::make_unique<XdpSocketFactory>();
++  auto connFactory = std::make_unique<XdpSocketFactory>();
++
++  hqServer_->setQuicUDPSocketFactories(std::move(listenerFactory), std::move(connFactory));
++
+ }
+ 
+ void MoQServer::registerAlpnHandler(const std::vector<std::string>& alpns) {
+diff --git a/moxygen/xdp/CMakeLists.txt b/moxygen/xdp/CMakeLists.txt
+new file mode 100644
+index 00000000..a5c6befb
+--- /dev/null
++++ b/moxygen/xdp/CMakeLists.txt
+@@ -0,0 +1,15 @@
++# Copyright (c) Meta Platforms, Inc. and affiliates.
++# This source code is licensed under the Apache 2.0 license found in the
++# LICENSE file in the root directory of this source tree.
++
++moxygen_add_library(moxygen_xdp
++  SRCS
++    XdpSocket.cpp
++  DEPS
++    libbpf
++    libxdp
++  EXPORTED_DEPS
++    mvfst::mvfst_server_server
++    Folly::folly_io_async_async_udp_socket
++    Folly::folly_logging_logging
++)
+\ No newline at end of file
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+new file mode 100644
+index 00000000..63e595f8
+--- /dev/null
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -0,0 +1,17 @@
++#include "moxygen/xdp/XdpSocket.h"
++#include <folly/io/async/EventBase.h>
++#include <folly/io/async/AsyncUDPSocket.h>
++
++#include <bpf/libbpf.h>
++#include <xdp/xsk.h>
++
++namespace moxygen {
++
++XdpSocket::XdpSocket(folly::EventBase* evb) : folly::AsyncUDPSocket(evb) {
++  XLOG(INFO) << "XdpSocket constructed";
++  XLOG(INFO) << "libbpf possible cpus=" << libbpf_num_possible_cpus();
++  XLOG(INFO) << "libxdp linked, xsk_socket__create @"
++               << reinterpret_cast<void*>(&xsk_socket__create);
++}
++
++}
+\ No newline at end of file
+diff --git a/moxygen/xdp/XdpSocket.h b/moxygen/xdp/XdpSocket.h
+new file mode 100644
+index 00000000..8c2f3474
+--- /dev/null
++++ b/moxygen/xdp/XdpSocket.h
+@@ -0,0 +1,39 @@
++#pragma once
++
++#include <folly/io/async/AsyncUDPSocket.h>
++#include <folly/io/async/EventBase.h>
++#include <folly/logging/xlog.h>
++
++#include <quic/server/QuicUDPSocketFactory.h>
++
++namespace moxygen {
++
++class XdpSocket : public folly::AsyncUDPSocket {
++  public:
++    XdpSocket(const XdpSocket&) = delete;
++    XdpSocket& operator=(const XdpSocket&) = delete;
++
++    explicit XdpSocket(folly::EventBase*);
++    virtual ~XdpSocket() = default;
++};
++
++class XdpSocketFactory : public quic::QuicUDPSocketFactory {
++  public:
++    ~XdpSocketFactory() override = default;
++
++    XdpSocketFactory() = default;
++    
++    std::unique_ptr<quic::FollyAsyncUDPSocketAlias> make(folly::EventBase* evb, int fd)
++        override {
++      auto sock = std::make_unique<XdpSocket>(evb);
++      if (fd != -1) {
++        sock->setFD(
++            folly::NetworkSocket::fromFd(fd),
++            quic::FollyAsyncUDPSocketAlias::FDOwnership::SHARED);
++        sock->setDFAndTurnOffPMTU();
++      }
++      return sock;
++    }
++};
++
++} // namespace moxygen
+\ No newline at end of file
+-- 
+2.43.0
+

@@ -1,0 +1,25 @@
+From a0fa617d2036693fcb0951513becb6287ad96b94 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Thu, 3 Sep 2026 16:10:45 +0200
+Subject: [PATCH 09/12] enable shouldUseWrapperRecvmmsgForBatchRecv flag to
+ enable recvmmsg path
+
+---
+ moxygen/MoQServer.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
+index c0d0d76a..f1d3a5d1 100644
+--- a/moxygen/MoQServer.cpp
++++ b/moxygen/MoQServer.cpp
+@@ -90,6 +90,7 @@ MoQServer::MoQServer(
+   params_.transportSettings = options.transportSettings
+       ? *options.transportSettings
+       : defaultTransportSettings();
++  params_.transportSettings.shouldUseWrapperRecvmmsgForBatchRecv = true;
+ 
+   // UDP socket buffer sizes
+   params_.udpSendBufferSize = options.udpSendBufferBytes > 0
+-- 
+2.43.0
+

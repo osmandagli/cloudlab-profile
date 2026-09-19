@@ -1,0 +1,93 @@
+From 1f67686b4d8f33afd7381dec33ae31fb9c61cfeb Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Tue, 25 Aug 2026 15:05:50 +0200
+Subject: [PATCH 02/12] XdpSocket container plumbing
+
+---
+ moxygen/xdp/XdpSocket.cpp | 30 ++++++++++++++++++++++++++++++
+ moxygen/xdp/XdpSocket.h   |  9 ++++++++-
+ 2 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+index 63e595f8..9a641f31 100644
+--- a/moxygen/xdp/XdpSocket.cpp
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -2,12 +2,42 @@
+ #include <folly/io/async/EventBase.h>
+ #include <folly/io/async/AsyncUDPSocket.h>
+ 
++#include <memory>
++#include <vector>
++#include <cstdint>
++
+ #include <bpf/libbpf.h>
+ #include <xdp/xsk.h>
+ 
++#define NUM_FRAMES  4096
++#define FRAME_SIZE  XSK_UMEM__DEFAULT_FRAME_SIZE
++
+ namespace moxygen {
+ 
++struct XdpState {
++  // UMEM region
++  void* umemArea = nullptr;
++  size_t umemSize = 0;
++  struct xsk_umem* umem = nullptr;
++
++  // Four rings
++  struct xsk_ring_prod fill;    // userspace -> kernel: empty frames for RX
++  struct xsk_ring_cons rx;      // kernel -> userspace: received frames
++  struct xsk_ring_cons comp;    // kernel -> userspace: finished TX frames
++  struct xsk_ring_prod tx;      // userspace -> kernel: frames to send
++
++  struct xsk_socket* xsk = nullptr;
++
++  std::vector<uint64_t> freeFrames; // Unused UMEM frames
++  int ifindex = -1;
++  int queueId = -1;
++};
++
++XdpSocket::~XdpSocket() = default;
++
+ XdpSocket::XdpSocket(folly::EventBase* evb) : folly::AsyncUDPSocket(evb) {
++  xdp_ = std::make_unique<XdpState>();
++  
+   XLOG(INFO) << "XdpSocket constructed";
+   XLOG(INFO) << "libbpf possible cpus=" << libbpf_num_possible_cpus();
+   XLOG(INFO) << "libxdp linked, xsk_socket__create @"
+diff --git a/moxygen/xdp/XdpSocket.h b/moxygen/xdp/XdpSocket.h
+index 8c2f3474..c8fea901 100644
+--- a/moxygen/xdp/XdpSocket.h
++++ b/moxygen/xdp/XdpSocket.h
+@@ -8,13 +8,18 @@
+ 
+ namespace moxygen {
+ 
++struct XdpState; // forward declaration 
++
+ class XdpSocket : public folly::AsyncUDPSocket {
+   public:
+     XdpSocket(const XdpSocket&) = delete;
+     XdpSocket& operator=(const XdpSocket&) = delete;
+ 
+     explicit XdpSocket(folly::EventBase*);
+-    virtual ~XdpSocket() = default;
++    ~XdpSocket() override;
++  private:
++    std::unique_ptr<XdpState> xdp_;
++    bool ownsXsk = false;
+ };
+ 
+ class XdpSocketFactory : public quic::QuicUDPSocketFactory {
+@@ -31,6 +36,8 @@ class XdpSocketFactory : public quic::QuicUDPSocketFactory {
+             folly::NetworkSocket::fromFd(fd),
+             quic::FollyAsyncUDPSocketAlias::FDOwnership::SHARED);
+         sock->setDFAndTurnOffPMTU();
++      } else {
++        ownsXsk = true;
+       }
+       return sock;
+     }
+-- 
+2.43.0
+

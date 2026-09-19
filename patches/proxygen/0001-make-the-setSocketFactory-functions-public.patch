@@ -1,0 +1,35 @@
+From 6abaa18c014d2eada96981ef72e7f48e17c0e34f Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Wed, 26 Aug 2026 14:44:51 +0200
+Subject: [PATCH] make the setSocketFactory functions public
+
+---
+ proxygen/httpserver/samples/hq/HQServer.h | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/proxygen/httpserver/samples/hq/HQServer.h b/proxygen/httpserver/samples/hq/HQServer.h
+index 0127903a3..4bb9c3904 100644
+--- a/proxygen/httpserver/samples/hq/HQServer.h
++++ b/proxygen/httpserver/samples/hq/HQServer.h
+@@ -78,6 +78,18 @@ class HQServer {
+     server_->setTransportSettingsOverrideFn(std::move(fn));
+   }
+ 
++  // Call before start()
++  // mirror of existing style, but public
++  void setQuicUDPSocketFactories(
++      std::unique_ptr<quic::QuicUDPSocketFactory> listenerFactory,
++      std::unique_ptr<quic::QuicUDPSocketFactory> connFactory) {
++    CHECK(server_);
++    // RX
++    server_->setListenerSocketFactory(std::move(listenerFactory));
++    // TX
++    server_->setQuicUDPSocketFactory(std::move(connFactory));
++  }
++
+   // Takeover runtime wrapper methods - forward to underlying QuicServer
+   // Takeover part 1: Methods called on the old instance.
+   void allowBeingTakenOver(const folly::SocketAddress& addr);
+-- 
+2.43.0
+

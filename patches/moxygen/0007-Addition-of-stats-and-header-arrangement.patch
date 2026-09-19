@@ -1,0 +1,69 @@
+From aeb97786291ea766e11cbb355e2aa3d0541b8b38 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Thu, 3 Sep 2026 13:31:07 +0200
+Subject: [PATCH 07/12] Addition of stats and  header arrangement
+
+---
+ moxygen/xdp/CMakeLists.txt  |  3 ++-
+ moxygen/xdp/XdpKernel.bpf.c |  3 ++-
+ moxygen/xdp/XdpSocket.cpp   | 10 ++++++++++
+ 3 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/moxygen/xdp/CMakeLists.txt b/moxygen/xdp/CMakeLists.txt
+index a5c6befb..bb3960fd 100644
+--- a/moxygen/xdp/CMakeLists.txt
++++ b/moxygen/xdp/CMakeLists.txt
+@@ -6,8 +6,9 @@ moxygen_add_library(moxygen_xdp
+   SRCS
+     XdpSocket.cpp
+   DEPS
+-    libbpf
+     libxdp
++    libbpf
++    
+   EXPORTED_DEPS
+     mvfst::mvfst_server_server
+     Folly::folly_io_async_async_udp_socket
+diff --git a/moxygen/xdp/XdpKernel.bpf.c b/moxygen/xdp/XdpKernel.bpf.c
+index ccba1920..1819ba13 100644
+--- a/moxygen/xdp/XdpKernel.bpf.c
++++ b/moxygen/xdp/XdpKernel.bpf.c
+@@ -1,4 +1,3 @@
+-#include <bpf/bpf_helpers.h>
+ #include <bpf/bpf_endian.h>
+ 
+ #include <linux/bpf.h>
+@@ -8,6 +7,8 @@
+ #include <linux/ipv6.h>
+ #include <linux/in.h>
+ 
++#include <bpf/bpf_helpers.h>
++
+ struct {
+ 	__uint(type, BPF_MAP_TYPE_XSKMAP);
+ 	__type(key, __u32);
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+index 33fedfa8..d5fcb1a9 100644
+--- a/moxygen/xdp/XdpSocket.cpp
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -348,6 +348,16 @@ void XdpSocket::resumeRead(folly::AsyncUDPSocket::ReadCallback* cob) {
+ 	if (!is_registered) {
+ 		XLOG(WARNING) << "Can't register the new handler";
+ 	}
++	getEventBase()->runAfterDelay([this] {
++      struct xdp_statistics st{};
++      socklen_t len = sizeof(st);
++      int fd = xsk_socket__fd(xdp_->xsk);
++      getsockopt(fd, SOL_XDP, XDP_STATISTICS, &st, &len);
++      XLOG(INFO) << "xsk rx_dropped=" << st.rx_dropped
++                 << " rx_invalid=" << st.rx_invalid_descs
++                 << " rx_ring_full=" << st.rx_ring_full
++                 << " rx_fill_empty=" << st.rx_fill_ring_empty_descs;
++  }, 3000);
+ }
+ 
+ }
+\ No newline at end of file
+-- 
+2.43.0
+

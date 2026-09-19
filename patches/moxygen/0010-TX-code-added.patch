@@ -1,0 +1,267 @@
+From a4149845785bc7b9c68af424f559e77fbccf73cf Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Tue, 8 Sep 2026 16:51:01 +0200
+Subject: [PATCH 10/12] TX code added
+
+---
+ moxygen/MoQServer.cpp     |   5 +-
+ moxygen/xdp/XdpSocket.cpp | 132 ++++++++++++++++++++++++++++++++++++++
+ moxygen/xdp/XdpSocket.h   |  21 +++++-
+ 3 files changed, 154 insertions(+), 4 deletions(-)
+
+diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
+index f1d3a5d1..7b8a5401 100644
+--- a/moxygen/MoQServer.cpp
++++ b/moxygen/MoQServer.cpp
+@@ -127,8 +127,9 @@ MoQServer::MoQServer(
+   hqServer_ =
+       std::make_unique<HQServer>(params_, std::move(factory_), fizzContext_);
+   
+-  auto listenerFactory = std::make_unique<XdpSocketFactory>();
+-  auto connFactory = std::make_unique<XdpSocketFactory>();
++  auto shared = std::make_shared<XskShared>();
++  auto listenerFactory = std::make_unique<XdpSocketFactory>(shared);
++  auto connFactory = std::make_unique<XdpSocketFactory>(shared);
+ 
+   hqServer_->setQuicUDPSocketFactories(std::move(listenerFactory), std::move(connFactory));
+ 
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+index 3c5a8429..37743f9e 100644
+--- a/moxygen/xdp/XdpSocket.cpp
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -2,6 +2,7 @@
+ #include <folly/io/async/EventBase.h>
+ #include <folly/io/async/AsyncUDPSocket.h>
+ #include <folly/net/NetOps.h>
++#include <folly/container/F14Map.h>
+ 
+ #include <memory>
+ #include <vector>
+@@ -56,6 +57,15 @@ struct xsk_socket_info {
+ 	int ifindex = -1;
+ 	bpf_object* obj = nullptr;
+ 
++	// L2 identity cache for TX (populated on RX)
++	uint8_t local_mac[6] = {0}; // eth->h_dest on RX eth src on TX
++	uint32_t local_ip = 0; 			// iph->daddr (net order) on RX ip src on TX
++	uint16_t local_port = 0;		// udp->dest (net order) on RX udp src on TX
++	bool l2_ready = false;
++
++	// per-peer next-hop MAC, keyed by peer IPv4 (net order). 
++	folly::F14FastMap<uint32_t, std::array<uint8_t, 6>> peer_macs;
++
+ 	~xsk_socket_info() {
+ 		if (ifindex > 0) bpf_xdp_detach(ifindex, XDP_FLAGS_SKB_MODE, NULL);
+ 		if (xsk) xsk_socket__delete(xsk);
+@@ -151,6 +161,27 @@ errno_exit:
+ 	return 1;
+ }
+ 
++void complete_tx(xsk_socket_info* x) {
++	uint32_t idx_cq = 0;
++	unsigned completed = xsk_ring_cons__peek(&x->umem->cq, XSK_RING_CONS__DEFAULT_NUM_DESCS, &idx_cq);
++
++	if (!completed) return;
++
++	for (unsigned i = 0; i < completed; i++) {
++		xsk_free_umem_frame(x, *xsk_ring_cons__comp_addr(&x->umem->cq, idx_cq + i));
++	}
++	xsk_ring_cons__release(&x->umem->cq, completed);
++}
++
++uint16_t ipv4_checksum(const void* data, size_t len) {
++	const uint16_t* p = (const uint16_t*) data;
++	uint32_t sum = 0;
++	while (len > 1) { sum += *p++; len -= 2; } // add each 16-bit word into 32 bit sum
++	if (len == 1) sum += *(const uint8_t*)p; // trailing odd byte
++	while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16); // fold carries
++	return (uint16_t)~sum; // one's complement; already in net order
++}
++
+ 
+ } // anonymous namespace
+ 
+@@ -292,6 +323,17 @@ int XdpSocket::recvmmsg(struct mmsghdr* msgvec, unsigned int vlen, unsigned int
+ 			continue;
+ 		}
+ 
++		std::array<uint8_t, 6> src;
++		memcpy(src.data(), eth->h_source, 6);
++		xdp_->peer_macs[iph->saddr] = src;
++
++		if (!xdp_->l2_ready) {
++			memcpy(xdp_->local_mac, eth->h_dest, 6);
++			xdp_->local_ip = iph->daddr;
++			xdp_->local_port = udp->dest;
++			xdp_->l2_ready = true;
++		}
++
+ 		uint8_t* payload = pkt + nh_off;
+ 		size_t payload_len = d->len - nh_off;
+ 
+@@ -342,4 +384,94 @@ void XdpSocket::resumeRead(folly::AsyncUDPSocket::ReadCallback* cob) {
+ 	}
+ }
+ 
++ssize_t XdpSocket::writev(const folly::SocketAddress& address, const struct iovec* vec, size_t iovec_len, folly::AsyncUDPSocket::WriteOptions options) {
++	xsk_socket_info* x = getXsk();
++	folly::IPAddress ip = address.getIPAddress();
++	if (ip.isIPv4Mapped()) {
++		ip = folly::IPAddress::createIPv4(ip);
++	}
++	// If something is not true fallback to old method
++	if (!x || !x->l2_ready || !ip.isV4() || iovec_len != 1) {
++		return folly::AsyncUDPSocket::writev(address, vec, iovec_len, options);
++	}
++
++	uint32_t peer_ip = ip.asV4().toLong();
++	auto it = x->peer_macs.find(peer_ip);
++	if (it == x->peer_macs.end()) { // never heard from this peer
++		return folly::AsyncUDPSocket::writev(address, vec, iovec_len, options);
++	}
++	const std::array<uint8_t, 6>& dst_mac = it->second;
++	uint16_t dst_port = htons(address.getPort());
++
++	size_t payload_len = 0;
++	for (size_t i = 0; i < iovec_len; i++) payload_len += vec[i].iov_len;
++	if (payload_len == 0) return 0;
++
++	size_t seg_size = options.gso > 0 ? (size_t)options.gso : payload_len;
++	size_t sent = 0;
++
++	for (size_t off = 0; off < payload_len; off += seg_size) {
++		// This is to make sure that the last one sized correctly
++		size_t seg_len = std::min(seg_size, payload_len - off);
++
++		uint64_t frame = xsk_alloc_umem_frame(x);
++		if (frame == INVALID_UMEM_FRAME) {
++			complete_tx(x); // reclaim finished TX frames, retry once
++			frame = xsk_alloc_umem_frame(x);
++			if (frame == INVALID_UMEM_FRAME) break; // still dry, stop
++		}
++		uint8_t* pkt = (uint8_t*)xsk_umem__get_data(x->umem->buffer, frame);
++    //   4. build eth/ip/udp headers into pkt   (dstMac, x->local_mac, peerIp, dstPort ...)
++		ssize_t hdr_len = 42; // 14 (eth) + 20 (ip) + 8 (udp)
++		// datagram must fit into FRAME SIZE (4096)
++		if (hdr_len + seg_len > FRAME_SIZE) { xsk_free_umem_frame(x, frame); break;}
++
++		struct ethhdr* eth = (struct ethhdr*) pkt;
++		memcpy(eth->h_dest, dst_mac.data(), 6); // peer, next hop
++		memcpy(eth->h_source, x->local_mac, 6); // us
++		eth->h_proto = htons(ETH_P_IP);
++
++		struct iphdr* iph = (struct iphdr*) (pkt + sizeof(*eth));
++		iph->version = 4;
++		iph->ihl = 5;
++		iph->tos = 0;
++		iph->tot_len = htons(sizeof(*iph) + sizeof(struct udphdr) + seg_len);
++		iph->id = 0;
++		iph->frag_off = 0;
++		iph->ttl = 64;
++		iph->protocol = IPPROTO_UDP;
++		iph->check = 0;
++		iph->saddr = x->local_ip;
++		iph->daddr = peer_ip;
++
++		struct udphdr* udp = (struct udphdr*) (pkt + sizeof(*eth) + sizeof(*iph));
++		udp->source = x->local_port;
++		udp->dest = dst_port;
++		udp->len = htons(sizeof(*udp) + seg_len);
++		udp->check = 0;
++
++		// copy the payload slice
++		memcpy(pkt + hdr_len, (const uint8_t*)vec[0].iov_base + off, seg_len);
++
++		iph->check = ipv4_checksum(iph, sizeof(*iph));
++    //   7. reserve TX desc: addr, len = 42 + segLen; submit
++		uint32_t tx_idx = 0;
++		if (xsk_ring_prod__reserve(&x->tx, 1, &tx_idx) != 1) {
++			xsk_free_umem_frame(x, frame); // couldn't queue stop
++			break;
++		}
++		struct xdp_desc* txd = xsk_ring_prod__tx_desc(&x->tx, tx_idx);
++		txd->addr = frame;
++		txd->len = hdr_len + seg_len;
++		xsk_ring_prod__submit(&x->tx, 1);
++		sent += seg_len;
++	}
++	// Stage 8 wakeup + Stage 9 completion drain, then:
++	if (xsk_ring_prod__needs_wakeup(&x->tx)) 
++			sendto(xsk_socket__fd(x->xsk), NULL, 0, MSG_DONTWAIT, NULL, 0);
++	complete_tx(x);
++	if (sent == 0) { errno = EAGAIN; return -1; }
++	return sent;
++}
++
+ }
+\ No newline at end of file
+diff --git a/moxygen/xdp/XdpSocket.h b/moxygen/xdp/XdpSocket.h
+index 7ce3d871..8b719b45 100644
+--- a/moxygen/xdp/XdpSocket.h
++++ b/moxygen/xdp/XdpSocket.h
+@@ -3,6 +3,7 @@
+ #include <folly/io/async/AsyncUDPSocket.h>
+ #include <folly/io/async/EventBase.h>
+ #include <folly/logging/xlog.h>
++#include <folly/SocketAddress.h>
+ 
+ #include <quic/server/QuicUDPSocketFactory.h>
+ 
+@@ -14,25 +15,36 @@ class XdpSocket : public folly::AsyncUDPSocket {
+   public:
+     XdpSocket(const XdpSocket&) = delete;
+     XdpSocket& operator=(const XdpSocket&) = delete;
++    
++    void setSharedXsk(xsk_socket_info* sharedXsk) { sharedXsk_ = sharedXsk; }
++
++    xsk_socket_info* getXsk() { return ownsXsk_ ? xdp_.get() : sharedXsk_; }
+ 
+     int recvmmsg(struct mmsghdr* msgvec, unsigned int vlen,
+                unsigned int flags, struct timespec* timeout) override;
+     
+     void resumeRead(folly::AsyncUDPSocket::ReadCallback* cob) override;
+ 
++    ssize_t writev(const folly::SocketAddress& address, 
++                   const struct iovec* vec, size_t iovec_len,
++                   folly::AsyncUDPSocket::WriteOptions options) override;
++
+     explicit XdpSocket(folly::EventBase*, bool ownsXsk);
+     ~XdpSocket() override;
+   private:
+     std::unique_ptr<xsk_socket_info> xdp_;
++    xsk_socket_info* sharedXsk_ = nullptr;
+     bool ownsXsk_;
+ };
+ 
++struct XskShared { xsk_socket_info* xsk = nullptr; };
++
+ class XdpSocketFactory : public quic::QuicUDPSocketFactory {
+   public:
+     ~XdpSocketFactory() override = default;
+ 
+-    XdpSocketFactory() = default;
+-    
++    XdpSocketFactory(std::shared_ptr<XskShared> shared) : shared_(shared) {}
++
+     std::unique_ptr<quic::FollyAsyncUDPSocketAlias> make(folly::EventBase* evb, int fd)
+         override {
+       auto sock = std::make_unique<XdpSocket>(evb, fd == -1); // listener owns the socket
+@@ -41,9 +53,14 @@ class XdpSocketFactory : public quic::QuicUDPSocketFactory {
+             folly::NetworkSocket::fromFd(fd),
+             quic::FollyAsyncUDPSocketAlias::FDOwnership::SHARED);
+         sock->setDFAndTurnOffPMTU();
++        sock->setSharedXsk(shared_->xsk);
++      } else {
++        shared_->xsk = sock->getXsk();
+       }
+       return sock;
+     }
++  private:
++    std::shared_ptr<XskShared> shared_ = nullptr;
+ };
+ 
+ } // namespace moxygen
+\ No newline at end of file
+-- 
+2.43.0
+

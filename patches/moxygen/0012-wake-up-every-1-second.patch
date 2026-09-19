@@ -1,0 +1,51 @@
+From 8f7a42c9278a495890dd4b1bfc84a22b6660d2c7 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Sat, 19 Sep 2026 15:04:46 +0200
+Subject: [PATCH 12/12] wake up every 1 second
+
+---
+ moxygen/xdp/XdpSocket.cpp | 8 +++++++-
+ moxygen/xdp/XdpSocket.h   | 1 +
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+index c4848dac..9a3eef64 100644
+--- a/moxygen/xdp/XdpSocket.cpp
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -190,7 +190,7 @@ void complete_func(xsk_socket_info* x) {
+ 	}
+ 
+ 	if (xsk_ring_prod__needs_wakeup(&x->umem->fq))
+-	//TODO add poll()
++		//TODO add poll()
+     	recvfrom(xsk_socket__fd(x->xsk), NULL, 0, MSG_DONTWAIT, NULL, NULL);
+ }
+ 
+@@ -398,6 +398,12 @@ void XdpSocket::resumeRead(folly::AsyncUDPSocket::ReadCallback* cob) {
+ 		XLOG(WARNING) << "Can't register the new handler";
+ 	}
+ 
++	rxKick_ = folly::AsyncTimeout::make(*getEventBase(), [this]() noexcept {
++	  complete_func(xdp_.get());
++	  rxKick_->scheduleTimeout(1);   // ms; re-arm
++	});
++	rxKick_->scheduleTimeout(1);
++
+ 	recvfrom(xsk_socket__fd(xdp_->xsk), NULL, 0, MSG_DONTWAIT, NULL, NULL);
+ }
+ 
+diff --git a/moxygen/xdp/XdpSocket.h b/moxygen/xdp/XdpSocket.h
+index 8b719b45..ef16b078 100644
+--- a/moxygen/xdp/XdpSocket.h
++++ b/moxygen/xdp/XdpSocket.h
+@@ -35,6 +35,7 @@ class XdpSocket : public folly::AsyncUDPSocket {
+     std::unique_ptr<xsk_socket_info> xdp_;
+     xsk_socket_info* sharedXsk_ = nullptr;
+     bool ownsXsk_;
++    std::unique_ptr<folly::AsyncTimeout> rxKick_;
+ };
+ 
+ struct XskShared { xsk_socket_info* xsk = nullptr; };
+-- 
+2.43.0
+

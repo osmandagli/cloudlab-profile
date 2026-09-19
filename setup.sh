@@ -132,6 +132,17 @@ echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -t
 if [[ "$ROLE" == "relay" ]]; then
     cd /local/repository/moxygen/scripts
     bash create-server-certs.sh
+
+    # Apply patches
+    cd /local/moxygen_build/repos/github.com-facebook-proxygen.git
+    git am /local/repository/patches/proxygen/*.patch
+    cd /local/moxygen_build/build/proxygen
+    ninja install
+
+    cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git
+    git am /local/repository/patches/moxygen/*.patch
+    cd /local/moxygen_build/build
+    ninja install
 fi
 
 # change ownership of moxygen

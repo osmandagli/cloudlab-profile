@@ -1,0 +1,55 @@
+From 63fd45a069e7d5b678f73a72e411b5b248e9cb22 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Wed, 26 Aug 2026 13:43:54 +0200
+Subject: [PATCH 03/12] change the xdpstate to xsk_socket_info
+
+---
+ moxygen/xdp/XdpSocket.h | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/moxygen/xdp/XdpSocket.h b/moxygen/xdp/XdpSocket.h
+index c8fea901..35227dc7 100644
+--- a/moxygen/xdp/XdpSocket.h
++++ b/moxygen/xdp/XdpSocket.h
+@@ -8,18 +8,18 @@
+ 
+ namespace moxygen {
+ 
+-struct XdpState; // forward declaration 
++struct xsk_socket_info; // forward declaration 
+ 
+ class XdpSocket : public folly::AsyncUDPSocket {
+   public:
+     XdpSocket(const XdpSocket&) = delete;
+     XdpSocket& operator=(const XdpSocket&) = delete;
+ 
+-    explicit XdpSocket(folly::EventBase*);
++    explicit XdpSocket(folly::EventBase*, bool ownsXsk);
+     ~XdpSocket() override;
+   private:
+-    std::unique_ptr<XdpState> xdp_;
+-    bool ownsXsk = false;
++    std::unique_ptr<xsk_socket_info> xdp_;
++    bool ownsXsk_;
+ };
+ 
+ class XdpSocketFactory : public quic::QuicUDPSocketFactory {
+@@ -30,14 +30,12 @@ class XdpSocketFactory : public quic::QuicUDPSocketFactory {
+     
+     std::unique_ptr<quic::FollyAsyncUDPSocketAlias> make(folly::EventBase* evb, int fd)
+         override {
+-      auto sock = std::make_unique<XdpSocket>(evb);
++      auto sock = std::make_unique<XdpSocket>(evb, fd == -1); // listener owns the socket
+       if (fd != -1) {
+         sock->setFD(
+             folly::NetworkSocket::fromFd(fd),
+             quic::FollyAsyncUDPSocketAlias::FDOwnership::SHARED);
+         sock->setDFAndTurnOffPMTU();
+-      } else {
+-        ownsXsk = true;
+       }
+       return sock;
+     }
+-- 
+2.43.0
+

@@ -1,0 +1,49 @@
+From 0c455d25d0815338f749a5cf786d8f13ebb11b6c Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Thu, 3 Sep 2026 16:09:52 +0200
+Subject: [PATCH 08/12] remove the stats and comments
+
+---
+ moxygen/xdp/XdpSocket.cpp | 18 ------------------
+ 1 file changed, 18 deletions(-)
+
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+index d5fcb1a9..3c5a8429 100644
+--- a/moxygen/xdp/XdpSocket.cpp
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -154,14 +154,6 @@ errno_exit:
+ 
+ } // anonymous namespace
+ 
+-// XdpSocket::~XdpSocket() {
+-//   xsk_socket__delete(xdp_->xsk);
+-//   if (xdp_->umem) {
+-//     xsk_umem__delete(xdp_->umem->umem);
+-//     free(xdp_->umem->buffer);
+-//     delete xdp_->umem;
+-//   }
+-// }
+ XdpSocket::~XdpSocket() = default;
+ 
+ XdpSocket::XdpSocket(folly::EventBase* evb, bool ownsXsk) : folly::AsyncUDPSocket(evb), ownsXsk_(ownsXsk) {
+@@ -348,16 +340,6 @@ void XdpSocket::resumeRead(folly::AsyncUDPSocket::ReadCallback* cob) {
+ 	if (!is_registered) {
+ 		XLOG(WARNING) << "Can't register the new handler";
+ 	}
+-	getEventBase()->runAfterDelay([this] {
+-      struct xdp_statistics st{};
+-      socklen_t len = sizeof(st);
+-      int fd = xsk_socket__fd(xdp_->xsk);
+-      getsockopt(fd, SOL_XDP, XDP_STATISTICS, &st, &len);
+-      XLOG(INFO) << "xsk rx_dropped=" << st.rx_dropped
+-                 << " rx_invalid=" << st.rx_invalid_descs
+-                 << " rx_ring_full=" << st.rx_ring_full
+-                 << " rx_fill_empty=" << st.rx_fill_ring_empty_descs;
+-  }, 3000);
+ }
+ 
+ }
+\ No newline at end of file
+-- 
+2.43.0
+

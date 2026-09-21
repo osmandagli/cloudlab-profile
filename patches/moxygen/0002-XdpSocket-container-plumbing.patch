@@ -1,7 +1,7 @@
-From 1f67686b4d8f33afd7381dec33ae31fb9c61cfeb Mon Sep 17 00:00:00 2001
+From 0b67a54b33ac55f153340cd532c2a38f4b0e4885 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Tue, 25 Aug 2026 15:05:50 +0200
-Subject: [PATCH 02/12] XdpSocket container plumbing
+Subject: [PATCH 02/14] XdpSocket container plumbing
 
 ---
  moxygen/xdp/XdpSocket.cpp | 30 ++++++++++++++++++++++++++++++

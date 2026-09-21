@@ -10,7 +10,7 @@
 set -uo pipefail
 
 N=${N:-40}
-RELAY_URL=${RELAY_URL:-https://10.10.1.2:4433/moq}
+RELAY_URL=${RELAY_URL:-https://10.10.1.1:4433/moq}
 SRC=${SRC:-$HOME/Movies/asian-commercial.flv}
 RES=${RES:-1920x1080}
 VB=${VB:-8000k}

@@ -30,7 +30,7 @@ if [[ "$ROLE" == "relay" ]]; then
 # Disable Hyperthreading
 if [[ ! -f "$HT_DISABLED_MARKER" ]]; then
     echo "Disabling HT via GRUB..."
-    sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nosmt isolcpus=$RELAY_CPU nohz_full=$RELAY_CPU rcu_nocbs=$RELAY_CPU\"/" $GRUB_CFG
+    sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nosmt isolcpus=$RELAY_CPU nohz_full=$RELAY_CPU rcu_nocbs=$RELAY_CPU iommu=pt\"/" $GRUB_CFG
     update-grub
     touch "$HT_DISABLED_MARKER"
     write_startup_script
@@ -127,7 +127,7 @@ grep -rl 'ftpmirror.gnu.org' . | xargs sed -i 's|ftpmirror\.gnu\.org|ftp.gnu.org
     --install-dir /local/moxygen_build
 
 # export the LD_LIBRARY_PATH
-echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> /users/odagli/.bashrc
+echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -type d |tr '\n' ':' | sed 's/:$//')" >> ~/.bashrc
 
 if [[ "$ROLE" == "relay" ]]; then
     cd /local/repository/moxygen/scripts
@@ -142,7 +142,18 @@ if [[ "$ROLE" == "relay" ]]; then
     cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git
     git am /local/repository/patches/moxygen/*.patch
     cd /local/moxygen_build/build
+    cmake -S /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git \
+        -B /local/moxygen_build/build \
+        -DLIBBPF_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libbpf.a \
+        -DLIBBPF_INCLUDE_DIR=/local/repository/xdp-tutorial/lib/install/include \
+        -DLIBXDP_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libxdp.a \
+        -DLIBXDP_INCLUDE_DIR=/local/repository/xdp-tutorial/lib/install/include
     ninja install
+    cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/moxygen/xdp
+    clang -O2 -g -Wall -target bpf \
+    -I/local/repository/xdp-tutorial/lib/install/include \
+    -c XdpKernel.bpf.c \
+    -o XdpKernel.bpf.o
 fi
 
 # change ownership of moxygen

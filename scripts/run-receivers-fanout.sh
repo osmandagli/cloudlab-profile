@@ -28,7 +28,7 @@ set -uo pipefail
 
 N=${N:-10}               # number of publisher namespaces (ingress streams)
 FANOUT=${FANOUT:-5}      # subscribers per namespace (the 1:FANOUT ratio)
-RELAY_URL=${RELAY_URL:-https://10.10.2.2:4433/moq}
+RELAY_URL=${RELAY_URL:-https://10.10.1.1:4433/moq}
 RECEIVER=${RECEIVER:-/local/moxygen_build/bin/moqflvreceiverclient}
 LOG_DIR=${LOG_DIR:-/tmp/moq-load/sub}
 NS_PREFIX=${NS_PREFIX:-flvstreamer}

@@ -17,6 +17,8 @@ for NIC_IFACE in "${NIC_IFACES[@]}"; do
     # Check the rule
     ethtool -u $NIC_IFACE
 
+    set ip link set dev $NIC_IFACE mtu 1500
+
     # Get all the possible NIC IRQs
     NIC_IRQ=$(grep ${NIC_IFACE}-TxRx-${RELAY_CPU}$ /proc/interrupts | awk '{print $1}' | tr -d ':')
 

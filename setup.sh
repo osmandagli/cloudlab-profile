@@ -142,6 +142,7 @@ if [[ "$ROLE" == "relay" ]]; then
     cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git
     git am /local/repository/patches/moxygen/*.patch
     cd /local/moxygen_build/build
+    cp /local/repository/patches/cmake/* /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/cmake/
     cmake -S /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git \
         -B /local/moxygen_build/build \
         -DLIBBPF_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libbpf.a \

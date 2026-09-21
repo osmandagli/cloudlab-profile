@@ -1,7 +1,7 @@
 From 3452ae3487ca9ffe9aca4f6a873bd0992c54e5a7 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Sat, 19 Sep 2026 17:48:46 +0200
-Subject: [PATCH 13/14] RX and TX  pools  are seperated. Total frames increased
+Subject: [PATCH 13/15] RX and TX  pools  are seperated. Total frames increased
  to 8192
 
 ---

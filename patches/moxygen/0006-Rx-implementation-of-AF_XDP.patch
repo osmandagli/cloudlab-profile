@@ -1,7 +1,7 @@
 From 8506674372b483dadde9a58cd5dbd7a0db360975 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Tue, 1 Sep 2026 16:58:57 +0200
-Subject: [PATCH 06/14] Rx implementation of AF_XDP
+Subject: [PATCH 06/15] Rx implementation of AF_XDP
 
 ---
  moxygen/xdp/XdpSocket.cpp | 178 ++++++++++++++++++++++++++++++++++++--

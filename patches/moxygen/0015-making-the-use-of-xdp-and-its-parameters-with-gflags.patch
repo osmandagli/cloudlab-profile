@@ -1,0 +1,108 @@
+From 6053e60045b73436a1e0e4f87b079e95b50d8b27 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Mon, 21 Sep 2026 17:54:03 +0200
+Subject: [PATCH 15/15] making the use of xdp and its parameters with gflags
+
+---
+ moxygen/MoQServer.cpp     | 16 ++++++++++++----
+ moxygen/xdp/XdpSocket.cpp | 14 +++++++++++---
+ 2 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
+index 7b8a5401..59c09130 100644
+--- a/moxygen/MoQServer.cpp
++++ b/moxygen/MoQServer.cpp
+@@ -9,6 +9,7 @@
+ #include <folly/String.h>
+ #include <folly/logging/xlog.h>
+ #include <folly/net/NetOps.h>
++#include <folly/portability/GFlags.h>
+ #include <proxygen/httpserver/samples/hq/FizzContext.h>
+ #include <proxygen/lib/http/session/HQSession.h>
+ #include <proxygen/lib/http/webtransport/HTTPWebTransport.h>
+@@ -24,6 +25,8 @@
+ using namespace quic::samples;
+ using namespace proxygen;
+ 
++DEFINE_bool(use_xdp, false, "Use AF_XDP sockets for the QUIC UDP data path");
++
+ namespace moxygen {
+ 
+ namespace {
+@@ -127,11 +130,16 @@ MoQServer::MoQServer(
+   hqServer_ =
+       std::make_unique<HQServer>(params_, std::move(factory_), fizzContext_);
+   
+-  auto shared = std::make_shared<XskShared>();
+-  auto listenerFactory = std::make_unique<XdpSocketFactory>(shared);
+-  auto connFactory = std::make_unique<XdpSocketFactory>(shared);
++  if (FLAGS_use_xdp) {
++    XLOG(INFO) << "MoQServer: AF_XDP data path enabled";
++    auto shared = std::make_shared<XskShared>();
++    hqServer_->setQuicUDPSocketFactories(
++        std::make_unique<XdpSocketFactory>(shared),
++        std::make_unique<XdpSocketFactory>(shared));
++  } else {
++    XLOG(INFO) << "MoQServer: using standard UDP sockets";
++  }
+ 
+-  hqServer_->setQuicUDPSocketFactories(std::move(listenerFactory), std::move(connFactory));
+ 
+ }
+ 
+diff --git a/moxygen/xdp/XdpSocket.cpp b/moxygen/xdp/XdpSocket.cpp
+index f1072a52..4e920414 100644
+--- a/moxygen/xdp/XdpSocket.cpp
++++ b/moxygen/xdp/XdpSocket.cpp
+@@ -4,6 +4,7 @@
+ #include <folly/io/async/AsyncUDPSocket.h>
+ #include <folly/net/NetOps.h>
+ #include <folly/container/F14Map.h>
++#include <folly/portability/GFlags.h>
+ 
+ #include <memory>
+ #include <vector>
+@@ -35,6 +36,13 @@
+ #define FRAME_SIZE  XSK_UMEM__DEFAULT_FRAME_SIZE
+ #define INVALID_UMEM_FRAME UINT64_MAX
+ 
++DEFINE_string(xdp_ifname, "eno12409np1", "NIC for the AF_XDP socket");
++DEFINE_int32(xdp_queue, 2, "NIC RX queue to bind the AF_XDP socket to");
++DEFINE_string(
++      xdp_bpf_obj,
++      "/local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/moxygen/xdp/XdpKernel.bpf.o",
++      "Path to the compiled XDP kernel object");
++
+ namespace moxygen {
+ 
+ struct xsk_umem_info {
+@@ -255,7 +263,7 @@ XdpSocket::XdpSocket(folly::EventBase* evb, bool ownsXsk) : folly::AsyncUDPSocke
+ 		throw std::runtime_error("ERROR: Can't create umem");
+ 	}
+ 
+-	int ifindex = if_nametoindex("enp23s0f0np0");
++	int ifindex = if_nametoindex(FLAGS_xdp_ifname.c_str());
+ 	if (ifindex == 0) {
+ 		fprintf(stderr, "ERROR: Can't find the interface \"%s\"\n",
+ 			strerror(errno));
+@@ -263,7 +271,7 @@ XdpSocket::XdpSocket(folly::EventBase* evb, bool ownsXsk) : folly::AsyncUDPSocke
+ 	}
+ 	xdp_->ifindex = ifindex;
+ 
+-	bpf_object* obj = bpf_object__open_file("/local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/moxygen/xdp/XdpKernel.bpf.o", NULL);
++	bpf_object* obj = bpf_object__open_file(FLAGS_xdp_bpf_obj.c_str(), NULL);
+ 	if (obj == NULL) {
+ 		fprintf(stderr, "ERROR: Can't open bpf object \"%s\"\n",
+ 			strerror(errno));
+@@ -299,7 +307,7 @@ XdpSocket::XdpSocket(folly::EventBase* evb, bool ownsXsk) : folly::AsyncUDPSocke
+ 		throw std::runtime_error("ERROR: Unvalid map_fd");
+ 	}
+ 
+-	ret = xsk_configure_socket(xdp_.get(), "enp23s0f0np0", 2);
++	ret = xsk_configure_socket(xdp_.get(), FLAGS_xdp_ifname.c_str(), FLAGS_xdp_queue);
+ 	if (ret) {
+ 		fprintf(stderr, "ERROR: Can't create socket \"%s\"\n",
+ 			strerror(errno));
+-- 
+2.43.0
+

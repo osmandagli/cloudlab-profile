@@ -1,7 +1,7 @@
 From 6903f1fca83221425d33b0a342495fc4c01f1607 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Thu, 3 Sep 2026 16:09:52 +0200
-Subject: [PATCH 08/14] remove the stats and comments
+Subject: [PATCH 08/15] remove the stats and comments
 
 ---
  moxygen/xdp/XdpSocket.cpp | 18 ------------------

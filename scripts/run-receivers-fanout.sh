@@ -32,6 +32,7 @@ RELAY_URL=${RELAY_URL:-https://10.10.1.1:4433/moq}
 RECEIVER=${RECEIVER:-/local/moxygen_build/bin/moqflvreceiverclient}
 LOG_DIR=${LOG_DIR:-/tmp/moq-load/sub}
 NS_PREFIX=${NS_PREFIX:-flvstreamer}
+LAT_DIR=${LAT_DIR:-}     # if set, each receiver writes a per-object latency CSV here
 RAMP=${RAMP:-0.3}        # delay between receiver launches (avoid a thundering herd)
 SETTLE=${SETTLE:-10}     # seconds to wait after launch before the liveness check
 WATCH=${WATCH:-10}       # re-check liveness every WATCH seconds (0 = off)
@@ -52,12 +53,14 @@ trap cleanup EXIT INT TERM
 
 [ -x "$RECEIVER" ] || { echo "FATAL: receiver not found: $RECEIVER" >&2; exit 1; }
 mkdir -p "$LOG_DIR"
+[ -n "$LAT_DIR" ] && mkdir -p "$LAT_DIR"
 
 total=$(( N * FANOUT ))
 ramp_secs=$(awk -v t="$total" -v r="$RAMP" 'BEGIN{printf "%d", t*r}')
 echo "==> $N namespaces x $FANOUT subscribers = $total receivers -> $RELAY_URL"
 echo "==> ratio 1:$FANOUT  (subscribing to ${NS_PREFIX}1 .. ${NS_PREFIX}${N})"
 echo "==> ramp ${ramp_secs}s at ${RAMP}s/receiver -- do NOT start profiling before it finishes"
+[ -n "$LAT_DIR" ] && echo "==> latency CSVs -> $LAT_DIR (needs PTP-synced clocks on both nodes)"
 echo
 
 # Count receivers still alive. Sessions dying mid-run is the failure mode that
@@ -73,11 +76,14 @@ k=0
 for i in $(seq 1 "$N"); do
   for j in $(seq 1 "$FANOUT"); do
     k=$(( k + 1 ))
+    lat_args=()
+    [ -n "$LAT_DIR" ] && lat_args=(--latency_csv "$LAT_DIR/lat_ns${i}_c${j}.csv")
     "$RECEIVER" \
       --insecure \
       --connect_url "$RELAY_URL" \
       --track_namespace "${NS_PREFIX}${i}" \
       --logging INFO \
+      "${lat_args[@]}" \
       > "$LOG_DIR/receiver_ns${i}_c${j}.log" 2>&1 &
     pids+=($!)
     printf "  [%3d/%d] %s%d  (copy %d/%d)\n" "$k" "$total" "$NS_PREFIX" "$i" "$j" "$FANOUT"

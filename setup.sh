@@ -78,7 +78,7 @@ apt install -y linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION \
     linux-tools-common linux-tools-generic \
     tcpdump
 
-[ -d xdp-tutorial ] || git clone https://github.com/xdp-project/xdp-tutorial
+[ -d xdp-tutorial ] || git clone --recurse https://github.com/xdp-project/xdp-tutorial
 cd xdp-tutorial
 ./configure
 make

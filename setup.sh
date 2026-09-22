@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 mkdir -p /local/logs
@@ -9,7 +9,6 @@ echo "Setup started $(date)"
 
 ROLE=${1:-relay}
 RELAY_CPU=2
-NIC_IFACES=("eno12409np1" "enp23s0f0np0")
 RELAY_PORT=4433
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
@@ -74,7 +73,7 @@ done
 
 # Download perf
 KERNEL_VERSION=$(uname -r)
-sudo apt install -y linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION \
+apt install -y linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION \
     clang llvm libelf-dev libpcap-dev build-essential libc6-dev-i386 m4 \
     linux-tools-common linux-tools-generic \
     tcpdump
@@ -86,9 +85,9 @@ make
 cd ..
 
 # Give permissions to the perf
-echo 'kernel.perf_event_paranoid=-1' | sudo tee /etc/sysctl.d/99-perf.conf
-echo 'kernel.kptr_restrict=0' | sudo tee -a /etc/sysctl.d/99-perf.conf
-sudo sysctl -p /etc/sysctl.d/99-perf.conf
+echo 'kernel.perf_event_paranoid=-1' | tee /etc/sysctl.d/99-perf.conf
+echo 'kernel.kptr_restrict=0' | tee -a /etc/sysctl.d/99-perf.conf
+sysctl -p /etc/sysctl.d/99-perf.conf
 
 fi # Relay role
 
@@ -165,7 +164,7 @@ net.core.rmem_default = 33554432
 net.core.wmem_default = 33554432
 EOF
 
-sudo sysctl --system
+sysctl --system
 
 sysctl net.core.rmem_max net.core.wmem_max
 

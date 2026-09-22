@@ -157,6 +157,18 @@ if [[ "$ROLE" == "relay" ]]; then
     -o XdpKernel.bpf.o
 fi
 
+
+tee /etc/sysctl.d/99-udp-buffers.conf <<'EOF'
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.core.rmem_default = 33554432
+net.core.wmem_default = 33554432
+EOF
+
+sudo sysctl --system
+
+sysctl net.core.rmem_max net.core.wmem_max
+
 # change ownership of moxygen
 chown odagli: -R /local
 

@@ -1,4 +1,4 @@
-From 8abb511e852e39a33aa6a5eccdd8df8f54b70812 Mon Sep 17 00:00:00 2001
+From cd1f4a83674d398f2a90ede1a0d14216fa91586e Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Mon, 21 Sep 2026 17:54:03 +0200
 Subject: [PATCH 15/16] making the use of xdp and its parameters with gflags
@@ -9,7 +9,7 @@ Subject: [PATCH 15/16] making the use of xdp and its parameters with gflags
  2 files changed, 23 insertions(+), 7 deletions(-)
 
 diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
-index 7b8a5401..59c09130 100644
+index 2b69db80..65935542 100644
 --- a/moxygen/MoQServer.cpp
 +++ b/moxygen/MoQServer.cpp
 @@ -9,6 +9,7 @@
@@ -104,5 +104,5 @@ index f1072a52..4e920414 100644
  		fprintf(stderr, "ERROR: Can't create socket \"%s\"\n",
  			strerror(errno));
 -- 
-2.43.0
+2.53.0
 

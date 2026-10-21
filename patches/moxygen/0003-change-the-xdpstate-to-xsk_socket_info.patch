@@ -1,4 +1,4 @@
-From f9084ecbdb6c0a89e01e7d1258ba003ac4cfb05f Mon Sep 17 00:00:00 2001
+From 753fd17056fcff4164551715a9707a1eba33af2b Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Wed, 26 Aug 2026 13:43:54 +0200
 Subject: [PATCH 03/16] change the xdpstate to xsk_socket_info
@@ -51,5 +51,5 @@ index c8fea901..35227dc7 100644
        return sock;
      }
 -- 
-2.43.0
+2.53.0
 

@@ -1,4 +1,4 @@
-From 925b4080900c75b3c1a5374201ee95b71517c9bc Mon Sep 17 00:00:00 2001
+From 0e46c1fe187611dd4a1a18b44bf5241a73da014a Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Thu, 3 Sep 2026 16:10:45 +0200
 Subject: [PATCH 09/16] enable shouldUseWrapperRecvmmsgForBatchRecv flag to
@@ -9,7 +9,7 @@ Subject: [PATCH 09/16] enable shouldUseWrapperRecvmmsgForBatchRecv flag to
  1 file changed, 1 insertion(+)
 
 diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
-index c0d0d76a..f1d3a5d1 100644
+index 537f12f7..0fd1211d 100644
 --- a/moxygen/MoQServer.cpp
 +++ b/moxygen/MoQServer.cpp
 @@ -90,6 +90,7 @@ MoQServer::MoQServer(
@@ -21,5 +21,5 @@ index c0d0d76a..f1d3a5d1 100644
    // UDP socket buffer sizes
    params_.udpSendBufferSize = options.udpSendBufferBytes > 0
 -- 
-2.43.0
+2.53.0
 

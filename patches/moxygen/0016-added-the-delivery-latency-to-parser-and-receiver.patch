@@ -1,4 +1,4 @@
-From 63cabdd1d713dc87dd0679d20c4b026cd45cf9b0 Mon Sep 17 00:00:00 2001
+From 3b5ee16b3a77cb19b12f0cc75220afb60e3e69a2 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Tue, 22 Sep 2026 11:59:45 +0200
 Subject: [PATCH 16/16] added the  delivery latency to parser and receiver
@@ -121,5 +121,5 @@ index 5219cb06..11df3e0e 100644
        const MoQMi::MoqMiItem& payloadDecodedData) const {
      std::optional<uint64_t> dur;
 -- 
-2.43.0
+2.53.0
 

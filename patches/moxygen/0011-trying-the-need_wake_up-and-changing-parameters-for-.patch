@@ -1,4 +1,4 @@
-From e37b25ce1680c607ff8ea387a8a403a0dfa6efc1 Mon Sep 17 00:00:00 2001
+From 10a8c9ce2b3481212a135fb3889de352c5c813c4 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Fri, 18 Sep 2026 13:33:09 +0200
 Subject: [PATCH 11/16] trying the need_wake_up and changing parameters for
@@ -240,5 +240,5 @@ index 37743f9e..c4848dac 100644
  	if (sent == 0) { errno = EAGAIN; return -1; }
  	return sent;
 -- 
-2.43.0
+2.53.0
 

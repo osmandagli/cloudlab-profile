@@ -1,4 +1,4 @@
-From 3b5ee16b3a77cb19b12f0cc75220afb60e3e69a2 Mon Sep 17 00:00:00 2001
+From d12ad7493aadf0c796eb73ce4233162f6dd77091 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Tue, 22 Sep 2026 11:59:45 +0200
 Subject: [PATCH 16/16] added the  delivery latency to parser and receiver
@@ -26,7 +26,7 @@ index 14ff5e08..9809f66e 100644
            .count();
  
 diff --git a/moxygen/samples/flv_receiver_client/MoQFlvReceiverClient.cpp b/moxygen/samples/flv_receiver_client/MoQFlvReceiverClient.cpp
-index 5219cb06..11df3e0e 100644
+index 8ab930ef..8bdc0d22 100644
 --- a/moxygen/samples/flv_receiver_client/MoQFlvReceiverClient.cpp
 +++ b/moxygen/samples/flv_receiver_client/MoQFlvReceiverClient.cpp
 @@ -5,6 +5,8 @@

@@ -1,4 +1,4 @@
-From cd1f4a83674d398f2a90ede1a0d14216fa91586e Mon Sep 17 00:00:00 2001
+From 3e10d1eb02591ce2dfb49163a9ef4ce9d3c46c68 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Mon, 21 Sep 2026 17:54:03 +0200
 Subject: [PATCH 15/16] making the use of xdp and its parameters with gflags
@@ -9,7 +9,7 @@ Subject: [PATCH 15/16] making the use of xdp and its parameters with gflags
  2 files changed, 23 insertions(+), 7 deletions(-)
 
 diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
-index 2b69db80..65935542 100644
+index cd61cc44..9a62f672 100644
 --- a/moxygen/MoQServer.cpp
 +++ b/moxygen/MoQServer.cpp
 @@ -9,6 +9,7 @@
@@ -20,7 +20,7 @@ index 2b69db80..65935542 100644
  #include <proxygen/httpserver/samples/hq/FizzContext.h>
  #include <proxygen/lib/http/session/HQSession.h>
  #include <proxygen/lib/http/webtransport/HTTPWebTransport.h>
-@@ -24,6 +25,8 @@
+@@ -25,6 +26,8 @@
  using namespace quic::samples;
  using namespace proxygen;
  
@@ -29,7 +29,7 @@ index 2b69db80..65935542 100644
  namespace moxygen {
  
  namespace {
-@@ -127,11 +130,16 @@ MoQServer::MoQServer(
+@@ -128,11 +131,16 @@ MoQServer::MoQServer(
    hqServer_ =
        std::make_unique<HQServer>(params_, std::move(factory_), fizzContext_);
    

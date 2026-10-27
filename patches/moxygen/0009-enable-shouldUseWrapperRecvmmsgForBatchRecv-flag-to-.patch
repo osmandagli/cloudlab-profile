@@ -1,4 +1,4 @@
-From 0e46c1fe187611dd4a1a18b44bf5241a73da014a Mon Sep 17 00:00:00 2001
+From 08c3d33caf89086c3d24e434933925782c1d3ad4 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Thu, 3 Sep 2026 16:10:45 +0200
 Subject: [PATCH 09/16] enable shouldUseWrapperRecvmmsgForBatchRecv flag to
@@ -9,10 +9,10 @@ Subject: [PATCH 09/16] enable shouldUseWrapperRecvmmsgForBatchRecv flag to
  1 file changed, 1 insertion(+)
 
 diff --git a/moxygen/MoQServer.cpp b/moxygen/MoQServer.cpp
-index 537f12f7..0fd1211d 100644
+index 7266db6c..61c04cf4 100644
 --- a/moxygen/MoQServer.cpp
 +++ b/moxygen/MoQServer.cpp
-@@ -90,6 +90,7 @@ MoQServer::MoQServer(
+@@ -91,6 +91,7 @@ MoQServer::MoQServer(
    params_.transportSettings = options.transportSettings
        ? *options.transportSettings
        : defaultTransportSettings();

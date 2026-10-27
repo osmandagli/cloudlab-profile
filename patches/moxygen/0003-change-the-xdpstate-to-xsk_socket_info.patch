@@ -1,4 +1,4 @@
-From 753fd17056fcff4164551715a9707a1eba33af2b Mon Sep 17 00:00:00 2001
+From ff1b7224eb89881f28d93cf9604e25e2cf632adb Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Wed, 26 Aug 2026 13:43:54 +0200
 Subject: [PATCH 03/16] change the xdpstate to xsk_socket_info

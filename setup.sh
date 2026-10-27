@@ -9,7 +9,6 @@ echo "Setup started $(date)"
 
 ROLE=${1:-relay}
 RELAY_CPU=2
-RELAY_PORT=4433
 GRUB_CFG=/etc/default/grub
 HT_DISABLED_MARKER=/local/.ht_disabled
 SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
@@ -50,7 +49,7 @@ for cpu in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
 done
 
 for cpu in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
-       echo "$(basename $(dirname $cpu)): $(cat $cpu)" | sed "s/policy/cpu /g"
+       echo "$(basename "$(dirname "$cpu")"): $(cat "$cpu")" | sed "s/policy/cpu /g"
 done
 
 echo "Disabling deep C-states on all cores..."
@@ -71,12 +70,15 @@ for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
     echo "  $name: disabled=$disabled"
 done
 
+fi # Relay role
+
 # Download perf
 KERNEL_VERSION=$(uname -r)
-apt install -y linux-tools-$KERNEL_VERSION linux-cloud-tools-$KERNEL_VERSION \
+apt install -y linux-tools-"$KERNEL_VERSION" linux-cloud-tools-"$KERNEL_VERSION" \
     clang llvm libelf-dev libpcap-dev build-essential libc6-dev-i386 m4 \
     linux-tools-common linux-tools-generic \
-    tcpdump
+    tcpdump \
+    g++ python3-dev python3-pip libdouble-conversion-dev python3-pex
 
 [ -d xdp-tutorial ] || git clone --recurse https://github.com/xdp-project/xdp-tutorial
 cd xdp-tutorial
@@ -89,18 +91,9 @@ echo 'kernel.perf_event_paranoid=-1' | tee /etc/sysctl.d/99-perf.conf
 echo 'kernel.kptr_restrict=0' | tee -a /etc/sysctl.d/99-perf.conf
 sysctl -p /etc/sysctl.d/99-perf.conf
 
-fi # Relay role
-
 # Clone the repo
 [ -d moxygen ] || git clone https://github.com/facebookexperimental/moxygen.git
 cd moxygen
-
-apt install -y \
-  g++ \
-  python3-dev \
-  python3-pip \
-  libdouble-conversion-dev \
-  python3-pex
 
 if [[ "$ROLE" == "publisher" || "$ROLE" == "subscriber" ]]; then
     apt install -y ffmpeg
@@ -110,7 +103,7 @@ fi
 PIP_BREAK_SYSTEM_PACKAGES=1 ./build/fbcode_builder/getdeps.py install-system-deps --recursive moxygen
 
 # Set env variables for building
-eval $(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)
+eval "$(./build/fbcode_builder/getdeps.py env --src-dir moxygen:. moxygen)"
 
 mkdir -p /local/moxygen_build
 
@@ -131,30 +124,31 @@ echo "export LD_LIBRARY_PATH=$(find /local/moxygen_build/installed/ -name lib -t
 if [[ "$ROLE" == "relay" ]]; then
     cd /local/repository/moxygen/scripts
     bash create-server-certs.sh
-
-    # Apply patches
-    cd /local/moxygen_build/repos/github.com-facebook-proxygen.git
-    git am /local/repository/patches/proxygen/*.patch
-    cd /local/moxygen_build/build/proxygen
-    ninja install
-
-    cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git
-    git am /local/repository/patches/moxygen/*.patch
-    cd /local/moxygen_build/build
-    cp /local/repository/patches/cmake/* /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/cmake/
-    cmake -S /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git \
-        -B /local/moxygen_build/build \
-        -DLIBBPF_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libbpf.a \
-        -DLIBBPF_INCLUDE_DIR=/local/repository/xdp-tutorial/lib/install/include \
-        -DLIBXDP_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libxdp.a \
-        -DLIBXDP_INCLUDE_DIR=/local/repository/xdp-tutorial/lib/install/include
-    ninja install
-    cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/moxygen/xdp
-    clang -O2 -g -Wall -target bpf \
-    -I/local/repository/xdp-tutorial/lib/install/include \
-    -c XdpKernel.bpf.c \
-    -o XdpKernel.bpf.o
 fi
+
+# Apply patches
+cd /local/moxygen_build/repos/github.com-facebook-proxygen.git
+git am /local/repository/patches/proxygen/*.patch
+cd /local/moxygen_build/build/proxygen
+ninja install
+
+cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git
+git am /local/repository/patches/moxygen/*.patch
+cd /local/moxygen_build/build
+cp /local/repository/patches/cmake/* /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/cmake/
+cmake -S /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git \
+    -B /local/moxygen_build/build \
+    -DLIBBPF_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libbpf.a \
+    -DLIBBPF_INCLUDE_DIR=/local/repository/xdp-tutorial/lib/install/include \
+    -DLIBXDP_LIBRARIES=/local/repository/xdp-tutorial/lib/install/lib/libxdp.a \
+    -DLIBXDP_INCLUDE_DIR=/local/repository/xdp-tutorial/lib/install/include
+ninja install
+cd /local/moxygen_build/repos/github.com-facebookexperimental-moxygen.git/moxygen/xdp
+clang -O2 -g -Wall -target bpf \
+-I/local/repository/xdp-tutorial/lib/install/include \
+-c XdpKernel.bpf.c \
+-o XdpKernel.bpf.o
+
 
 
 tee /etc/sysctl.d/99-udp-buffers.conf <<'EOF'

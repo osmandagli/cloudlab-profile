@@ -1,0 +1,39 @@
+From 4f44fc8017cbea5dbab2cff1f1390abc7e6141f0 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Thu, 29 Oct 2026 16:59:40 +0100
+Subject: [PATCH 17/17] FLAG added to change the UDP buffer size
+
+---
+ moxygen/relay/MoQRelayServer.cpp | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/moxygen/relay/MoQRelayServer.cpp b/moxygen/relay/MoQRelayServer.cpp
+index 7a42b253..6e16f0dc 100644
+--- a/moxygen/relay/MoQRelayServer.cpp
++++ b/moxygen/relay/MoQRelayServer.cpp
+@@ -48,6 +48,10 @@ DEFINE_bool(
+     false,
+     "Listen on QMUX-on-TCP (TLS via Fizz is mandatory). May be combined with "
+     "--quic for dual-stack.");
++DEFINE_int64(
++    udp_buffer_bytes,
++    0,
++    "UDP SO_SNDBUF/SO_RCVBUF request; 0 = moxygen default (1 MiB)");
+ 
+ namespace {
+ using namespace moxygen;
+@@ -118,7 +122,10 @@ int main(int argc, char* argv[]) {
+         relay,
+         std::move(fizzContext),
+         FLAGS_endpoint,
+-        MoQServer::Options{.transportSettings = ts});
++        MoQServer::Options{
++          .transportSettings = ts,
++          .udpSendBufferBytes = static_cast<size_t>(FLAGS_udp_buffer_bytes),
++          .udpRecvBufferBytes = static_cast<size_t>(FLAGS_udp_buffer_bytes)});
+     servers.push_back(quicServer);
+   }
+ 
+-- 
+2.53.0
+

@@ -1,7 +1,7 @@
 From 7c6b9aeffd7ec8a9c7ec519c5177a6e1ea134a85 Mon Sep 17 00:00:00 2001
 From: osmandagli <osman.dagli687@gmail.com>
 Date: Fri, 18 Sep 2026 13:33:09 +0200
-Subject: [PATCH 11/16] trying the need_wake_up and changing parameters for
+Subject: [PATCH 11/17] trying the need_wake_up and changing parameters for
  real NIC
 
 ---

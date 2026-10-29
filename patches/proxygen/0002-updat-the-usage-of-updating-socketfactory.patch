@@ -1,0 +1,58 @@
+From 72fd4f9266070ccd3e158f717e82cd5d1a7050a6 Mon Sep 17 00:00:00 2001
+From: osmandagli <osman.dagli687@gmail.com>
+Date: Thu, 29 Oct 2026 15:39:23 +0100
+Subject: [PATCH 2/2] updat the usage of updating socketfactory
+
+---
+ proxygen/httpserver/samples/hq/HQServer.cpp |  7 ++++++-
+ proxygen/httpserver/samples/hq/HQServer.h   | 12 +++++-------
+ 2 files changed, 11 insertions(+), 8 deletions(-)
+
+diff --git a/proxygen/httpserver/samples/hq/HQServer.cpp b/proxygen/httpserver/samples/hq/HQServer.cpp
+index fc2c79b1c..b49f1240c 100644
+--- a/proxygen/httpserver/samples/hq/HQServer.cpp
++++ b/proxygen/httpserver/samples/hq/HQServer.cpp
+@@ -353,7 +353,12 @@ void HQServer::start(const folly::SocketAddress& localAddress,
+   options.processId = processId_;
+   options.hostId = hostId_;
+   options.cidVersion = cidVersion_;
+-  options.socketFactory = std::make_unique<QuicSharedUDPSocketFactory>();
++  options.socketFactory = connSocketFactory_ 
++                          ? std::move(connSocketFactory_) 
++                          : std::make_unique<QuicSharedUDPSocketFactory>();
++  if (listenerSocketFactory_) {
++    options.listenerSocketFactory = std::move(listenerSocketFactory_);
++  }
+   options.healthCheckToken = std::string("health");
+   folly::SocketOptionMap socketOptions;
+   if (params_.udpRecvBufferSize > 0) {
+diff --git a/proxygen/httpserver/samples/hq/HQServer.h b/proxygen/httpserver/samples/hq/HQServer.h
+index 961508945..79e19f106 100644
+--- a/proxygen/httpserver/samples/hq/HQServer.h
++++ b/proxygen/httpserver/samples/hq/HQServer.h
+@@ -80,17 +80,15 @@ class HQServer {
+     transportSettingsOverrideFn_ = std::move(fn);
+   }
+ 
+-  // Call before start()
+-  // mirror of existing style, but public
+   void setQuicUDPSocketFactories(
+       std::unique_ptr<quic::QuicUDPSocketFactory> listenerFactory,
+       std::unique_ptr<quic::QuicUDPSocketFactory> connFactory) {
+-    CHECK(server_);
+-    // RX
+-    server_->setListenerSocketFactory(std::move(listenerFactory));
+-    // TX
+-    server_->setQuicUDPSocketFactory(std::move(connFactory));
++    CHECK(!server_); // must be allocated before the start of the server
++    listenerSocketFactory_ = std::move(listenerFactory);
++    connSocketFactory_ = std::move(connFactory);
+   }
++  std::unique_ptr<quic::QuicUDPSocketFactory> listenerSocketFactory_;
++  std::unique_ptr<quic::QuicUDPSocketFactory> connSocketFactory_;
+ 
+   // Takeover runtime wrapper methods - forward to underlying QuicServer
+   // Takeover part 1: Methods called on the old instance.
+-- 
+2.53.0
+
